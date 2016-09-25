@@ -1,0 +1,38 @@
+baseurl = "http://masnun.rocks/"
+languageCode = "en-us"
+title = "masnun.rocks()"
+theme = "ghostwriter"
+
+
+[Author]
+    name = "Abu Ashraf Masnun"
+    profile = "https://masnun.me"
+
+[Taxonomies]
+    tag = "tags"
+
+[Params]
+    intro = true
+    headline = "Abu Ashraf Masnun"
+    description = "Whovian, *nixer, business graduate, passionate software craftsman"
+    github = "https://github.com/masnun"
+    twitter = "https://twitter.com/masnun"
+    stackoverflow = "http://stackoverflow.com/users/301107/masnun"
+
+[Permalinks]
+    post = "/:year/:month/:day/:filename/"
+
+[[menu.main]]
+    name = "Home"
+    url = "/"
+    weight = 1
+
+[[menu.main]]
+    name = "Contact"
+    url = "/page/contact/"
+    weight = 3
+
+[[menu.main]]
+    name = "About"
+    url = "/page/about/"
+    weight = 4
