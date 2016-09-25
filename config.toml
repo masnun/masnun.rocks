@@ -3,6 +3,8 @@ languageCode = "en-us"
 title = "masnun.rocks()"
 theme = "ghostwriter"
 
+googleAnalytics = "UA-84715154-1"
+disqusShortname = "masnun-rocks"
 
 [Author]
     name = "Abu Ashraf Masnun"
