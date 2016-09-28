@@ -61,7 +61,7 @@ You can also check out these links for random benchmarks from different people:
 
 * <a target="_blank" href="http://www.matthiaskauer.com/2014/02/a-speed-comparison-of-python-cython-and-c/">Cython beating C++</a>
 * <a target="_blank" href="http://prabhuramachandran.blogspot.com/2008/09/python-vs-cython-vs-d-pyd-vs-c-swig.html">Cython being 30% faster than the C++</a>
-* <a target="_blank" herf="http://aroberge.blogspot.com/2010/01/python-cython-faster-than-c.html">Another Benchmark</a>
+* <a target="_blank" href="http://aroberge.blogspot.com/2010/01/python-cython-faster-than-c.html">Another Benchmark</a>
 
 And finally, do try yourself and benchmark Cython against C++ and see how it performs! 
 
