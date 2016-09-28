@@ -2,7 +2,7 @@
 author = ""
 date = "2016-09-28T08:00:30+06:00"
 description = ""
-tags = []
+tags = ["Python", "Cython"]
 title = "Can Cython make Python Great in Programming Contests?"
 
 +++
@@ -49,7 +49,7 @@ and <a target="_blank" href="http://docs.cython.org/en/latest/src/userguide/lang
 When I say fast, I really mean - **very very** fast. 
 
 <center>
-<img src="https://www.ibm.com/developerworks/community/blogs/jfp/resource/BLOGS_UPLOADED_IMAGES/runtimes_202.png" alt="cython vs c" />
+<img src="/images/cython-vs-c.png" alt="cython vs c" />
 
  Image Source: <a target="_blank" href="http://ibm.co/20XSZ4F">http://ibm.co/20XSZ4F</a> 
  
