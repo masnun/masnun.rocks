@@ -1,8 +1,8 @@
 +++
 author = ""
-date = "2016-10-01T05:27:23+06:00"
+date = "2016-10-01T17:27:23+06:00"
 description = ""
-tags = []
+tags = ["Python", "Cython"]
 title = "Creating an executable file using Cython"
 
 +++
