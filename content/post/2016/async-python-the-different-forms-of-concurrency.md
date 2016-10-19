@@ -336,6 +336,6 @@ else:
 ``` 
 
 * CPU Bound => Multi Processing
-* I/O Bound, Fast I/O => Multi Threading
-* I/O Bound, Slow I/O => Asyncio 
+* I/O Bound, Fast I/O, Limited Number of Connections => Multi Threading
+* I/O Bound, Slow I/O, Many connections => Asyncio 
 
