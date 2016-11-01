@@ -136,5 +136,12 @@ The `getdoc` function can be used to retrieve available documentation from an ob
 "list() -> new empty list\nlist(iterable) -> new list initialized from iterable's items"
 ```
 
+The inspect module has some other cool functions too. Do check them out. And of course, you know how! ;-)
+
+```python
+>>> import inspect
+>>> help(inspect)
+```
+
 
 
