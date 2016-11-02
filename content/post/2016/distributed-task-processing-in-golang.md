@@ -35,7 +35,7 @@ We need to install `machinery` first. I am using Glide for dependency management
 that is not compulsory. `go get` should work fine. So first, let's install machinery - 
 
 ```sh
-go get github.com/RichardKnop/machinery
+go get github.com/RichardKnop/machinery/v1
 ```
 
 ### Writing Task and worker
