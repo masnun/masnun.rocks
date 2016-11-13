@@ -197,7 +197,7 @@ table {
   font-size: 14px;
   font-weight: 600;
   margin: 0;
-  text-transform: uppercase; }
+   }
   .site-title a {
     float: left;
     background: #F03838;
@@ -245,10 +245,12 @@ table {
   font-weight: 700;
   margin: 15px 0;
   text-align: center;
-  text-transform: uppercase; }
+}
 
 .page-title {
-  margin: 15px 40px; }
+  margin: 15px 40px; 
+  text-transform: uppercase;
+}
 
 .post-date,
 .blog-description {

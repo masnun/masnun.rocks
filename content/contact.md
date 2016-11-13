@@ -7,7 +7,9 @@ title = "Contact"
 
 +++
 
+<hr/>
 <center><b>I usually prefer that you email me or leave me a message on Facebook.</b></center>
+<hr/>
 
 **Email:** masnun [at] gmail.com <br/>
 **Skype:** masnun_ <br/>
