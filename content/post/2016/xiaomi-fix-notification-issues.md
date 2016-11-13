@@ -14,7 +14,7 @@ which I need almost all day. I was getting concerned. Luckily, after some googli
 I found several fixes on different forums. I will quickly go through them in this 
 post. 
 
-#### Enable Autostart
+### Enable Autostart
 
 Enabling autostart fixes the notification issue for most people. To make sure that 
 notifications work for a particular app, enable that app to "autostart". This can 
@@ -29,7 +29,7 @@ Or you can follow this video:
 
  <iframe width="640" height="360" src="https://www.youtube.com/embed/wZESXVSxByY" frameborder="0" allowfullscreen></iframe>
 
-#### Lock Apps to Memory
+### Lock Apps to Memory
 
  This is another good solution that would work. In the task manager, slightly pull down
  an open app and you will see the "Lock" option. Locked apps aren't cleared from memory
@@ -40,13 +40,13 @@ Or you can follow this video:
  Slack open only during my work hours. 
 
 
-#### Managing Background Activities 
+### Managing Background Activities 
 
 Go to: `Settings > Battery & Performance > Manage Apps Battery Use` and `Choose Apps`. 
 For the apps you want, select "No Restrictions". Setting this would tell MIUI not to 
 terminate/interrupt any background processes from those apps.    
 
-#### Remember to Restart 
+### Remember to Restart 
 
 Once you have made the changes, restart the phone. Specially after enabling autostart. 
 Now test out the notifications and see if they work fine. 

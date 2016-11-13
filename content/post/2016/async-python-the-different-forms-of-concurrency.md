@@ -13,7 +13,7 @@ far from the truth. We have had async and concurrent operations for quite some t
 beginners may think that `asyncio` is the only/best way to do async/concurrent operations. In this post
 we shall explore the different ways we can achieve concurrency and the benefits/drawbacks of them. 
 
-## Defining The Terms
+### Defining The Terms
 
 Before we dive into the technical aspects, it is essential to have some basic understanding of the terms 
 frequently used in this context. 
@@ -66,7 +66,7 @@ So this is what we have realized so far:
 
 <br/>
 
-## Threads & Processes 
+### Threads & Processes 
 
 Python has had __Threads__ for a very long time. Threads allow us to run our operations concurrently. But there was/is a problem with 
 the __Global Interpreter Lock (GIL)__ for which the threading could not provide true parallelism. However, with __multiprocessing__, 
@@ -239,7 +239,7 @@ __Further Reading:__
 
 <br/>
 
-## Asyncio - Why, What and How?
+### Asyncio - Why, What and How?
 
 You probably have the question many people in the Python community have - What does asyncio bring new to the table? Why did we need
 one more way to do async I/O? Did we not have threads and processes already? Let's see! 
@@ -319,7 +319,7 @@ starts monitoring any I/O event related to it and allows tasks to run. When asyn
 resumes the function. 
 
 
-## Making the Right Choice
+### Making the Right Choice
 
 We have walked through the most popular forms of concurrency. But the question remains - when should choose which one? 
 It really depends on the use cases. From my experience (and reading), I tend to follow this pseudo code:
