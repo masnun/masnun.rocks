@@ -1,0 +1,427 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <meta charset="utf-8">
+        <meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1">
+        <title>Distributed Task Processing in Go &middot; Abu Ashraf Masnun</title>
+        <meta name="description" content="Whovian, *nixer, business graduate, passionate software craftsman">
+        <meta name="HandheldFriendly" content="True">
+        <meta name="MobileOptimized" content="320">
+        <meta name="generator" content="Hugo 0.17" />
+        <meta name="robots" content="index,follow">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <link rel="stylesheet" href="http://masnun.rocks/css/normalize.css">
+        <link rel="stylesheet" href="http://masnun.rocks/css/highlight.css">
+        <link rel="stylesheet" href="http://masnun.rocks/css/style.css">
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Open+Sans:300italic,400italic,600italic,700italic,400,600,700,300&subset=latin,cyrillic-ext,latin-ext,cyrillic">
+        <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/font-awesome/4.6.3/css/font-awesome.min.css">
+    </head>
+    <body>
+        
+<script>
+(function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
+(i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
+m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
+})(window,document,'script','//www.google-analytics.com/analytics.js','ga');
+
+ga('create', 'UA-84715154-1', 'auto');
+ga('send', 'pageview');
+</script>
+
+
+        <div id="wrapper">
+            <header class="site-header">
+                <div class="container">
+                    <div class="site-title-wrapper">
+                        
+                            <h1 class="site-title">
+                                <a title="masnun.rocks()" href="http://masnun.rocks/">masnun.rocks()</a>
+                            </h1>
+                        
+                        <a class="button-square" href="http://masnun.rocks/index.xml"><i class="fa fa-rss"></i></a>
+                        
+                            <a class="button-square button-social hint--top" data-hint="Twitter" title="Twitter" href="https://twitter.com/masnun">
+                                <i class="fa fa-twitter"></i>
+                            </a>
+                        
+                        
+                        
+                            <a class="button-square button-social hint--top" data-hint="Github" title="Github" href="https://github.com/masnun">
+                                <i class="fa fa-github-alt"></i>
+                            </a>
+                        
+                        
+                            <a class="button-square button-social hint--top" data-hint="Stack Overflow" title="Stack Overflow" href="http://stackoverflow.com/users/301107/masnun">
+                                <i class="fa fa-stack-overflow"></i>
+                            </a>
+                        
+                        
+                        
+                    </div>
+
+                    <ul class="site-nav">
+                        
+    <li class="site-nav-item">
+        <a title="Home" href="/">Home</a>
+    </li>
+
+    <li class="site-nav-item">
+        <a title="Contact" href="/contact/">Contact</a>
+    </li>
+
+    <li class="site-nav-item">
+        <a title="About" href="/about/">About</a>
+    </li>
+
+                    </ul>
+                </div>
+            </header>
+
+            <div id="container">
+
+
+<div class="container">
+    <article class="post-container">
+        <header class="post-header">
+    <h1 class="post-title">Distributed Task Processing in Go</h1>
+    
+</header>
+
+        <div class="post-content clearfix">
+    
+
+    
+
+<p>I started playing with Go almost a year ago but never really managed to dive deeper or do anything serious with
+it. Recently picked it up again, reading and trying out bits of code on and off. Also started this new blog with
+Hugo (which is written in Go as well). As a language, Go is simple yet performant. I am definitely going to
+build a few micro services with Go soon.</p>
+
+<p>Having said that, I was wondering what I could use to build a distributed task processing system. What I wanted is
+something similar to Celery in the Python land. Luckily, I found
+<a href="https://github.com/RichardKnop/machinery" target="_blank">machinery</a> which is inspired by Celery and
+has nice APIs to achieve similar results. In this blog post, I am going to demonstrate a simple example.</p>
+
+<p>The source code is available here: <a href="https://github.com/masnun/golang-distributed-task-processing" target="_blank">masnun/golang-distributed-task-processing</a></p>
+
+<h3 id="getting-started">Getting started</h3>
+
+<p>Here&rsquo;s what we&rsquo;re going to do:</p>
+
+<ul>
+<li>There will be at least one worker which will be running and waiting for tasks</li>
+<li>We will be sending task request from another process</li>
+<li>We will be using Redis as the message queue</li>
+<li>Ideally the setup would be distributed, that is the worker might run in a separate machine. But for this
+example, I will run both the worker and the task sender on the same machine.</li>
+</ul>
+
+<h3 id="get-the-dependencies">Get the dependencies</h3>
+
+<p>We need to install <code>machinery</code> first. I am using Glide for dependency management in this project. But
+that is not compulsory. <code>go get</code> should work fine. So first, let&rsquo;s install machinery -</p>
+
+<pre><code class="language-sh">go get github.com/RichardKnop/machinery/v1
+</code></pre>
+
+<h3 id="writing-task-and-worker">Writing Task and worker</h3>
+
+<p>Workers are processes which keep running, waiting for task requests. Tasks are functions which can be
+requested and then the workers execute those functions and return the results.</p>
+
+<p>Say we have a task named <code>Say</code>. From some other processes, we would request that the <code>Say</code> task be executed.
+The worker that will receive the request will find which function is registered as the <code>Say</code> task and then
+call the function with the received arguments. The result from the function is then stored and can be retrieved
+by the other parties.</p>
+
+<p>So we first need to write a simple task. We will be writing a function named <code>Say</code> which will accept a name and
+say hello. So let&rsquo;s create a directory named <code>worker</code> and inside create a file named <code>hello.go</code>. In the file,
+let&rsquo;s define this function:</p>
+
+<pre><code class="language-go">package main
+
+// Say &quot;Hello World&quot;
+func Say(name string) (string, error) {
+	return &quot;Hello &quot; + name + &quot;!&quot;, nil
+}
+
+</code></pre>
+
+<p>Please note the function signature. The function must return <code>error</code> as the second return value. Otherwise
+the library will have issues.</p>
+
+<p>In our case, we will be building a single executable from the worker code. So the package is called main. Now
+that we have a function, let&rsquo;s write the worker. Create a file named <code>main.go</code> and put the following contents:</p>
+
+<pre><code class="language-go">package main
+
+import (
+	machinery &quot;github.com/RichardKnop/machinery/v1&quot;
+	&quot;github.com/RichardKnop/machinery/v1/config&quot;
+	&quot;github.com/RichardKnop/machinery/v1/errors&quot;
+)
+
+func main() {
+
+	var cnf = config.Config{
+		Broker:        &quot;redis://127.0.0.1:6379&quot;,
+		ResultBackend: &quot;redis://127.0.0.1:6379&quot;,
+	}
+
+	server, err := machinery.NewServer(&amp;cnf)
+	if err != nil {
+		errors.Fail(err, &quot;Could not create server&quot;)
+	}
+
+	server.RegisterTask(&quot;Say&quot;, Say)
+
+	worker := server.NewWorker(&quot;worker-1&quot;)
+	err = worker.Launch()
+	if err != nil {
+		errors.Fail(err, &quot;Could not launch worker!&quot;)
+	}
+
+}
+</code></pre>
+
+<p>The code is quite simple. We create a config object by passing the <code>Broker</code> and <code>ResultBackend</code> values. We are
+using Redis here and the redis server is running on our machine. Please make sure the redis server is up and
+running on that address. Otherwise, change the address to point to a running redis instance.</p>
+
+<p>Then we construct a server out of the configuration and register the task with the <code>RegisterTask</code> method. We
+pass a name and the corresponding function to execute for that task. It becomes simpler if we use the function
+as the task name. Once the task is registered, we need to create one or more worker processes. Here we create a
+new worker instance by calling <code>NewWorker</code> method on the server. We pass a worker name so we can identify it
+later on (for example in the logs). We then <code>Launch</code> the worker. The worker starts up and connects to our redis
+server. It then subscribes to appropriate channels to start listenning to task requests.</p>
+
+<p>That&rsquo;s all we need to do to create a task and worker.</p>
+
+<h3 id="requesting-sending-tasks">Requesting / Sending Tasks</h3>
+
+<p>Now from another process (say from a running web application), on a certain ocassion, we want to run a background
+task. Here we will see how we can send task requests.</p>
+
+<p>In our root directory, let&rsquo;s create another <code>main.go</code> file and <code>main</code> function to send the tasks.</p>
+
+<pre><code class="language-go">package main
+
+import (
+	machinery &quot;github.com/RichardKnop/machinery/v1&quot;
+	&quot;github.com/RichardKnop/machinery/v1/config&quot;
+	&quot;github.com/RichardKnop/machinery/v1/errors&quot;
+	&quot;github.com/RichardKnop/machinery/v1/signatures&quot;
+)
+
+func main() {
+
+	var cnf = config.Config{
+		Broker:        &quot;redis://127.0.0.1:6379&quot;,
+		ResultBackend: &quot;redis://127.0.0.1:6379&quot;,
+	}
+
+	server, err := machinery.NewServer(&amp;cnf)
+	if err != nil {
+		errors.Fail(err, &quot;Can not create server!&quot;)
+	}
+
+	sayTask := signatures.TaskSignature{
+		Name: &quot;Say&quot;,
+		Args: []signatures.TaskArg{
+			signatures.TaskArg{
+				Type:  &quot;string&quot;,
+				Value: &quot;masnun&quot;,
+			},
+		},
+	}
+
+	server.SendTask(&amp;sayTask)
+
+}
+
+</code></pre>
+
+<p>If you look carefully, up to the server creation, the code is same. We define a config and create a server. Then we
+define a task signature. We need to define task signatures to request task executions. In the task signature,
+we need to pass the <code>Name</code> of the task and a list of arguments as <code>Args</code>. The args will be of <code>TaskArg</code> type. Each
+<code>TaskArg</code> need to set the <code>Type</code> and the <code>Value</code>. These arguments will be passed along to our function when the worker
+receives this request.</p>
+
+<p>To queue a task, we use the <code>SendTask</code> method and pass a pointer to our <code>TaskSignature</code>.</p>
+
+<h3 id="tying-it-out">Tying it out!</h3>
+
+<p>Make sure the redis server is running. In case it is not, run it.</p>
+
+<pre><code class="language-sh">redis-server
+</code></pre>
+
+<p>Once redis is running, build and run the worker.</p>
+
+<pre><code class="language-sh">cd worker
+go build
+./worker
+</code></pre>
+
+<p>Once the worker starts up, you should see some messages like these:</p>
+
+<pre><code>machinery: worker.go:27: Launching a worker with the following settings:
+machinery: worker.go:28: - Broker: redis://127.0.0.1:6379
+machinery: worker.go:29: - ResultBackend: redis://127.0.0.1:6379
+machinery: worker.go:30: - Exchange:
+machinery: worker.go:31: - ExchangeType:
+machinery: worker.go:32: - DefaultQueue:
+machinery: worker.go:33: - BindingKey:
+machinery: redis.go:86: [*] Waiting for messages. To exit press CTRL+C
+</code></pre>
+
+<p>Now we need to build the program that will send tasks to the queue. Open a new terminal window and
+navigate to the project root. Build the main program and run it.</p>
+
+<pre><code>go build -o main
+./main
+</code></pre>
+
+<p>That should queue the task. Now switch to the worker process and check the output. If everything goes right,
+we will see some output like:</p>
+
+<pre><code>machinery: redis.go:211: Received new message: {&quot;UUID&quot;:&quot;task_c39f7e99-df4d-443a-ad21-3481260b34fb&quot;,&quot;Name&quot;:&quot;Say&quot;,&quot;RoutingKey&quot;:&quot;&quot;,&quot;GroupUUID&quot;:&quot;&quot;,&quot;GroupTaskCount&quot;:0,&quot;Args&quot;:[{&quot;Type&quot;:&quot;string&quot;,&quot;Value&quot;:&quot;masnun&quot;}],&quot;Headers&quot;:null,&quot;Immutable&quot;:false,&quot;OnSuccess&quot;:null,&quot;OnError&quot;:null,&quot;ChordCallback&quot;:null}
+machinery: worker.go:110: Processed task_c39f7e99-df4d-443a-ad21-3481260b34fb. Result = Hello masnun!
+</code></pre>
+
+<p>Since we are using a <code>ResultBackend</code> too, we can check the state and retrieve the task results.</p>
+
+<pre><code class="language-go">
+asyncResult, err := server.SendTask(&amp;sayTask)
+
+taskState := asyncResult.GetState()
+fmt.Printf(&quot;Current state of %v task is:\n&quot;, taskState.TaskUUID)
+fmt.Println(taskState.State)
+
+result, err := asyncResult.Get()
+fmt.Println(result.Interface())
+</code></pre>
+
+<p>(My example code on Github does not include this part, it would be a good self practice to try these out ourselves,
+no?)</p>
+
+<p>The machinery library has some other cool features too. Do checkout the github repo for in depth documentation
+and code samples.</p>
+
+</div>
+
+        <hr/>
+        <div>
+            
+            
+            <link href="//cdn-images.mailchimp.com/embedcode/horizontal-slim-10_7.css" rel="stylesheet" type="text/css">
+            <style type="text/css">
+                #mc_embed_signup{background:#fff; clear:left; font:14px Helvetica,Arial,sans-serif; width:100%;}
+                 
+            </style>
+            <div id="mc_embed_signup">
+            <form action="//rocks.us6.list-manage.com/subscribe/post?u=9629b854ab5af8778b9853891&amp;id=ad5968cb3a" method="post" id="mc-embedded-subscribe-form" name="mc-embedded-subscribe-form" class="validate" target="_blank" novalidate>
+                <div id="mc_embed_signup_scroll">
+                <label for="mce-EMAIL">Subscribe via Email</label>
+                <input type="email" value="" name="EMAIL" class="email" id="mce-EMAIL" placeholder="email address" required>
+                
+                <div style="position: absolute; left: -5000px;" aria-hidden="true"><input type="text" name="b_9629b854ab5af8778b9853891_ad5968cb3a" tabindex="-1" value=""></div>
+                <div class="clear"><input type="submit" value="Subscribe" name="subscribe" id="mc-embedded-subscribe" class="button"></div>
+                </div>
+            </form>
+            </div>
+
+            
+        
+        </div>
+        <hr/>
+
+        <footer class="post-footer clearfix">
+    
+        <p class="post-tags">
+            <span>Tagged:</span>
+            
+                 <a href="/tags/golang/">Golang</a>
+            
+        </p>
+    
+
+    <div class="share">
+        <a class="icon-twitter" href="http://twitter.com/share?text=Distributed%20Task%20Processing%20in%20Go&url=http%3a%2f%2fmasnun.rocks%2f2016%2f11%2f01%2fdistributed-task-processing-in-golang%2f"
+            onclick="window.open(this.href, 'twitter-share', 'width=550,height=235');return false;">
+            <i class="fa fa-twitter"></i>
+            <span class="hidden">Twitter</span>
+        </a>
+
+        <a class="icon-facebook" href="https://www.facebook.com/sharer/sharer.php?u=http%3a%2f%2fmasnun.rocks%2f2016%2f11%2f01%2fdistributed-task-processing-in-golang%2f"
+            onclick="window.open(this.href, 'facebook-share','width=580,height=296');return false;">
+            <i class="fa fa-facebook"></i>
+            <span class="hidden">Facebook</span>
+        </a>
+
+        <a class="icon-google-plus" href="https://plus.google.com/share?url=http%3a%2f%2fmasnun.rocks%2f2016%2f11%2f01%2fdistributed-task-processing-in-golang%2f"
+           onclick="window.open(this.href, 'google-plus-share', 'width=490,height=530');return false;">
+           <i class="fa fa-google-plus"></i>
+            <span class="hidden">Google+</span>
+        </a>
+    </div>
+</footer>
+
+        <br/>
+
+        
+    <div class="comments">
+        <div id="disqus_thread"></div>
+<script type="text/javascript">
+    var disqus_shortname = 'masnun-rocks';
+    var disqus_identifier = 'http:\/\/masnun.rocks\/2016\/11\/01\/distributed-task-processing-in-golang\/';
+    var disqus_title = 'Distributed Task Processing in Go';
+    var disqus_url = 'http:\/\/masnun.rocks\/2016\/11\/01\/distributed-task-processing-in-golang\/';
+
+    (function() {
+        var dsq = document.createElement('script'); dsq.type = 'text/javascript'; dsq.async = true;
+        dsq.src = '//' + disqus_shortname + '.disqus.com/embed.js';
+        (document.getElementsByTagName('head')[0] || document.getElementsByTagName('body')[0]).appendChild(dsq);
+    })();
+</script>
+<noscript>Please enable JavaScript to view the <a href="http://disqus.com/?ref_noscript">comments powered by Disqus.</a></noscript>
+<a href="http://disqus.com" class="dsq-brlink">comments powered by <span class="logo-disqus">Disqus</span></a>
+    </div>
+
+
+    </article>
+
+    
+</div>
+
+            </div>
+        </div>
+
+        <footer class="footer">
+            <div class="container">
+                <div class="site-title-wrapper">
+                    <h1 class="site-title">
+                        <a title="masnun.rocks()" href="http://masnun.rocks/">masnun.rocks()</a>
+                    </h1>
+                    <a class="button-square button-jump-top js-jump-top" href="#">
+                        <i class="fa fa-angle-up"></i>
+                    </a>
+                </div>
+
+                <p class="footer-copyright">
+                    <span>&copy; 2016 / Powered by <a href="http://gohugo.io/">Hugo</a></span>
+                </p>
+                <p class="footer-copyright">
+                    <span><a href="https://github.com/roryg/ghostwriter">Ghostwriter theme</a> By <a href="http://jollygoodthemes.com">JollyGoodThemes</a></span>
+                    <span>/ <a href="https://github.com/jbub/ghostwriter">Ported</a> to Hugo By <a href="https://github.com/jbub">jbub</a></span>
+                </p>
+            </div>
+        </footer>
+
+        <script src="http://masnun.rocks/js/jquery-1.11.3.min.js"></script>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/8.5/highlight.min.js"></script>
+        <script src="http://masnun.rocks/js/jquery.fitvids.js"></script>
+        <script src="http://masnun.rocks/js/scripts.js"></script>
+    </body>
+</html>
+

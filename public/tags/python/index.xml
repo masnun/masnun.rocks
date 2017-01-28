@@ -1,0 +1,1537 @@
+<?xml version="1.0" encoding="utf-8" standalone="yes" ?>
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">
+  <channel>
+    <title>masnun.rocks()</title>
+    <link>http://masnun.rocks/tags/python/index.xml</link>
+    <description>Recent content on masnun.rocks()</description>
+    <generator>Hugo -- gohugo.io</generator>
+    <language>en-us</language>
+    <atom:link href="http://masnun.rocks/tags/python/index.xml" rel="self" type="application/rss+xml" />
+    
+    <item>
+      <title>Django Channels: Using Custom Channels</title>
+      <link>http://masnun.rocks/2016/11/27/django-channels-using-custom-channels/</link>
+      <pubDate>Sun, 27 Nov 2016 07:48:51 +0600</pubDate>
+      
+      <guid>http://masnun.rocks/2016/11/27/django-channels-using-custom-channels/</guid>
+      <description>
+
+&lt;p&gt;In my earlier blog post - &lt;a href=&#34;http://masnun.rocks/2016/09/25/introduction-to-django-channels/&#34;&gt;Introduction to Django Channels&lt;/a&gt;,
+I mentioned that we can create our own channels for various purposes. In this blog post, we would discuss where custom channels
+can be useful, what could be the challenges and of course we would see some code examples. But before we begin, please make sure
+you are familiar with the concepts of Django Channels. I would recommend going through the above mentioned post and the official
+docs to familiarize yourself with the basics.&lt;/p&gt;
+
+&lt;h3 id=&#34;our-use-case&#34;&gt;Our Use Case&lt;/h3&gt;
+
+&lt;p&gt;Channels is just a queue which has consumers (workers) listenning to it. With that concept in mind, we might be able to think of
+many innovative use cases a queue could have. But in our example, we will keep the idea simple. We are going to use Channels as
+a means of background task processing.&lt;/p&gt;
+
+&lt;p&gt;We will create our own channels for different tasks. There will be consumers waiting for messages on these channels. When we want to
+do something in the background, we would pass it on the appropriate channels &amp;amp; the workers will take care of the tasks. For example,
+we want to create a thumbnail of an user uploaded photo? We pass it to the &lt;code&gt;thumbnails&lt;/code&gt; channel. We want to send a confirmation email,
+we send it to the &lt;code&gt;welcome_email&lt;/code&gt; channel. Like that. If you are familiar with Celery or Python RQ, this would sound pretty
+familiar to you.&lt;/p&gt;
+
+&lt;p&gt;Now here&amp;rsquo;s my use case - in one of the projects I am working on, we&amp;rsquo;re building APIs for mobile applications. We use BrainTree for
+payment integration. The mobile application sends a &lt;code&gt;nonce&lt;/code&gt; - it&amp;rsquo;s like a token that we can use to initiate the actual transaction.
+The transaction has two steps - first we initiate it using the nonce and I get back a transaction id. Then I query whether the transaction
+succeeded or failed. I felt it would be a good idea to process this in the background. We already have a websocket end point implemented
+using Channels. So I thought it would be great to leverage the existing setup instead of introducing something new in the stack.&lt;/p&gt;
+
+&lt;h3 id=&#34;challenges&#34;&gt;Challenges&lt;/h3&gt;
+
+&lt;p&gt;It has so far worked pretty well. But we have to remember that Channels does not gurantee delivery of the messages and there is
+no retrying if a message fails. So we wrote a custom management command that checks the orders for any records that have the nonce
+set but no transaction id or there is transaction id but there is no final result stored. We then scheduled this command to run at
+a certain interval and queue up the unfinished/incomplete orders again. In our case, it doesn&amp;rsquo;t hurt if the orders need some 5 to 10
+minutes to process.&lt;/p&gt;
+
+&lt;p&gt;But if we were working on a product where the message delivery was time critical for our business, we probably would have considered
+Celery for the background processing part.&lt;/p&gt;
+
+&lt;h3 id=&#34;let-s-see-the-codes&#34;&gt;Let&amp;rsquo;s see the codes!&lt;/h3&gt;
+
+&lt;p&gt;First we needed to write a handler. The hadler would receive the messages on the subscribed channel and process them. Here&amp;rsquo;s the handler:&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class=&#34;language-python&#34;&gt;def braintree_process(message):
+    order_data = message.content.get(&#39;order&#39;)
+    order_id = message.content.get(&#39;order_id&#39;)
+    order_instance = Order.objects.get(pk=order_id)
+
+    if order_data:
+        nonce = order_data.get(&amp;quot;braintree_nonce&amp;quot;)
+        if nonce:
+            # [snipped]
+
+            TRANSACTION_SUCCESS_STATUSES = [
+                braintree.Transaction.Status.Authorized,
+                braintree.Transaction.Status.Authorizing,
+                braintree.Transaction.Status.Settled,
+                braintree.Transaction.Status.SettlementConfirmed,
+                braintree.Transaction.Status.SettlementPending,
+                braintree.Transaction.Status.Settling,
+                braintree.Transaction.Status.SubmittedForSettlement
+            ]
+
+            result = braintree.Transaction.sale({
+                &#39;amount&#39;: str(order_data.get(&#39;total&#39;)),
+                &#39;payment_method_nonce&#39;: nonce,
+                &#39;options&#39;: {
+                    &amp;quot;submit_for_settlement&amp;quot;: True
+                }
+            })
+
+            if result.is_success or result.transaction:
+                transaction = braintree.Transaction.find(result.transaction.id)
+                if transaction.status in TRANSACTION_SUCCESS_STATUSES:
+                    # [snipped]
+                else:
+                    # [snipped]
+            else:
+                errors = []
+                for x in result.errors.deep_errors:
+                    errors.append(str(x.code))
+
+                # [snipped]
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;Then we needed to define a routing so the messages on a certain channel is passed on to this handler. So in our channel routing, we added
+this:&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class=&#34;language-python&#34;&gt;from channels.routing import route
+from .channel_handlers import braintree_process
+
+channel_routing = [
+    route(&amp;quot;braintree_process&amp;quot;, braintree_process),
+    # [snipped] ...
+]
+
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;We now have a routing set and a handler ready to accept messages. So we&amp;rsquo;re ready! All we need to do is to start passing the
+data to this channel.&lt;/p&gt;
+
+&lt;p&gt;When the API receives a &lt;code&gt;nonce&lt;/code&gt;, it just passes the order details to this channel:&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class=&#34;language-python&#34;&gt;Channel(&amp;quot;braintree_process&amp;quot;).send({
+    &amp;quot;order&amp;quot;: data,
+    &amp;quot;order_id&amp;quot;: order.id
+})
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;And then the workers start working. They accept the message and then starts processing the payment request.&lt;/p&gt;
+
+&lt;p&gt;In our case, we already had the workers running (since they were serving our websocket requests). If you don&amp;rsquo;t have any workers running,
+don&amp;rsquo;t forget to run them.&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;python manage.py runworker
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;If you are wondering about how to deploy channels, I have you covered - &lt;a href=&#34;http://masnun.rocks/2016/11/02/deploying-django-channels-using-daphne/&#34;&gt;Deploying Django Channels using Daphne&lt;/a&gt;&lt;/p&gt;
+
+&lt;h3 id=&#34;prioritizing-scaling-channels&#34;&gt;Prioritizing / Scaling Channels&lt;/h3&gt;
+
+&lt;p&gt;In our project, Django Channels do two things - handling websocket connections for realtime communication, process delayed jobs in
+background. As you can probably guess, the realtime part is more important. In our current setup, the running workers handle both
+types of requests as they come. But we want to dedicate more workers to the websocket and perhaps just one worker should keep processing
+the payments.&lt;/p&gt;
+
+&lt;p&gt;Luckily, we can limit our workers to certain channels using the &lt;code&gt;--only-channels&lt;/code&gt; flag. Or alternatively we can exclude certain
+channels by using the &lt;code&gt;--exclude-channels&lt;/code&gt; flags.&lt;/p&gt;
+
+&lt;h3 id=&#34;concluding-thoughts&#34;&gt;Concluding Thoughts&lt;/h3&gt;
+
+&lt;p&gt;I personally find the design of channels very straightforward, simple and easy to reason about. When Channels get merged into Django,
+it&amp;rsquo;s going to be quite useful, not just for implementing http/2 or websockets, but also as a way to process background tasks with ease
+and without introducing third party libraries.&lt;/p&gt;
+</description>
+    </item>
+    
+    <item>
+      <title>Exploring Asyncio - uvloop, sanic and motor</title>
+      <link>http://masnun.rocks/2016/11/17/exploring-asyncio-uvloop-sanic-motor/</link>
+      <pubDate>Thu, 17 Nov 2016 03:33:38 +0600</pubDate>
+      
+      <guid>http://masnun.rocks/2016/11/17/exploring-asyncio-uvloop-sanic-motor/</guid>
+      <description>
+
+&lt;p&gt;The &lt;code&gt;asyncio&lt;/code&gt; package was introduced in the standard library from Python 3.4. The package is still in provisional stage, that is
+backward compatibility can be broken with future changes. However, the Python community is pretty excited about it and I know
+personally that many people have started using it in production. So, I too decided to try it out. I built a rather simple
+micro service using the excellent &lt;code&gt;sanic&lt;/code&gt; framework and &lt;code&gt;motor&lt;/code&gt; (for accessing mongodb). &lt;code&gt;uvloop&lt;/code&gt; is an alternative event loop
+implementation written in Cython on top of libuv and can be used as a drop in replacement for asyncio&amp;rsquo;s event loop. Sanic uses
+&lt;code&gt;uvloop&lt;/code&gt; behind the scene to go fast.&lt;/p&gt;
+
+&lt;p&gt;In this blog post, I would quickly introduce the technologies involved and then walk through some sample code with relevant explanations.&lt;/p&gt;
+
+&lt;h3 id=&#34;what-is-asyncio-why-should-i-care&#34;&gt;What is Asyncio? Why Should I Care?&lt;/h3&gt;
+
+&lt;p&gt;In one of my earlier blog post - &lt;a href=&#34;http://masnun.rocks/2016/10/06/async-python-the-different-forms-of-concurrency/&#34;&gt;Async Python: The Different Forms of Concurrency&lt;/a&gt;,
+I have tried to elaborate on the different ways to achieve concurrency in the Python land. In the last part of the post, I have tried
+to explain what asyncio brings new to the table.&lt;/p&gt;
+
+&lt;p&gt;Asyncio allows us to write asynchronous, concurrent programs running on a single thread, using an event loop to schedule tasks and
+multiplexing I/O over sockets (and other resources). The one line explanation might be a little complex to comprehend at a glance. So
+I will break it down. In asyncio, everything runs on a single thread. We use coroutines which can be treated as small units of task
+that we can pause and resume. Then there is I/O multiplexing - when our tasks are busy waiting for I/O, an event loop pauses them
+and allows other tasks to run. When the paused tasks finish I/O, the event loop resumes them. This way even a single thread can
+handle / serve a large number of connections / clients by effectively juggling between &amp;ldquo;active&amp;rdquo; tasks and tasks that are waiting
+for some sort of I/O.&lt;/p&gt;
+
+&lt;p&gt;In general synchronous style, for example, when we&amp;rsquo;re using thread based concurrency, each client will occupy a thread and when
+we have a large number of connections, we will soon run out of threads. Though not all of those threads were active at a given time,
+some might have been simply waiting for I/O, doing nothing. Asyncio helps us solve this problem and provides an efficient solution
+to the concurrency problem.&lt;/p&gt;
+
+&lt;p&gt;While Twisted, Tornado and many other solutions have existed in the past, NodeJS brought huge attention to this kind of solution.
+And with Asyncio being in the standard library, I believe it will become the standard way of doing async I/O in the Python world over
+time.&lt;/p&gt;
+
+&lt;h3 id=&#34;what-about-uvloop&#34;&gt;What about uvloop?&lt;/h3&gt;
+
+&lt;p&gt;We talked about event loop above. It schedules the tasks and deals with various events. It also manages the I/O multiplexing using
+the various options offered by the operating system. In simple words - the event loop is very critical and the central part of the
+whole asyncio operations. The &lt;code&gt;asyncio&lt;/code&gt; package ships with an event loop by default. But we can also swap it for our custom
+implementations if we need/prefer. &lt;code&gt;uvloop&lt;/code&gt; is one such event loop that is very very fast. The key to it&amp;rsquo;s success could be partially
+attributed to Cython. Cython allows us to write codes in Python like syntax while the codes perform like C. &lt;code&gt;uvloop&lt;/code&gt; was written in
+Cython and it uses the famous &lt;code&gt;libuv&lt;/code&gt; library (also used by NodeJS).&lt;/p&gt;
+
+&lt;p&gt;If you are wondering if &lt;code&gt;uvloop&lt;/code&gt;&amp;rsquo;s performances are good enough reason to swap out the default event loop, you may want to read this
+aricle here - &lt;a href=&#34;https://magic.io/blog/uvloop-blazing-fast-python-networking/&#34;&gt;uvloop: Blazing fast Python networking&lt;/a&gt; or you can just
+look at this following chart taken from that blog post:&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&#34;http://i.imgur.com/0iMUePy.png&#34; /&gt;&lt;/p&gt;
+
+&lt;p&gt;Yes, it can go faster than NodeJS and catch up to Golang. Convinced yet? Let&amp;rsquo;s talk about Sanic!&lt;/p&gt;
+
+&lt;h3 id=&#34;sanic-gotta-go-fast&#34;&gt;Sanic - Gotta go fast!&lt;/h3&gt;
+
+&lt;p&gt;Sanic was inspired by the above article I talked about. They used &lt;code&gt;uvloop&lt;/code&gt; and &lt;code&gt;httptools&lt;/code&gt; too (referenced in the article). The
+framework provides a nice, Flask like syntax along with the &lt;code&gt;async / await&lt;/code&gt; syntax from Python 3.5.&lt;/p&gt;
+
+&lt;p&gt;&lt;strong&gt;Please Note:&lt;/strong&gt; &lt;code&gt;uvloop&lt;/code&gt; still doesn&amp;rsquo;t work on Windows properly. Sanic uses the default asyncio event loop if uvloop
+is not available. But this probably doesn&amp;rsquo;t matter because in most cases we deploy to linux machines anyway. Just in case you
+want to try out the performance gains on Windows, I recommend you use a VM to test it inside a Linux machine.&lt;/p&gt;
+
+&lt;h3 id=&#34;motor&#34;&gt;Motor&lt;/h3&gt;
+
+&lt;p&gt;Motor started off as an async mongodb driver for Tornado. Motor = &lt;strong&gt;Mo&lt;/strong&gt;ngodb + &lt;strong&gt;Tor&lt;/strong&gt;nado. But Motor
+now has pretty nice support for asyncio. And of course we can use the &lt;code&gt;async / await&lt;/code&gt; syntax too.&lt;/p&gt;
+
+&lt;p&gt;I guess we have had brief introductions to the technologies we are going to use. So let&amp;rsquo;s get started with the actual work.&lt;/p&gt;
+
+&lt;h3 id=&#34;setting-up&#34;&gt;Setting Up&lt;/h3&gt;
+
+&lt;p&gt;We need to install &lt;code&gt;sanic&lt;/code&gt; and &lt;code&gt;motor&lt;/code&gt; using &lt;code&gt;pip&lt;/code&gt;.&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;pip install sanic
+pip install motor
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;Sanic should also install it&amp;rsquo;s dependencies including &lt;code&gt;uvloop&lt;/code&gt; and &lt;code&gt;ujson&lt;/code&gt; along with others.&lt;/p&gt;
+
+&lt;h3 id=&#34;set-uvloop-as-the-event-loop&#34;&gt;Set &lt;code&gt;uvloop&lt;/code&gt; as the event loop&lt;/h3&gt;
+
+&lt;p&gt;We will swap out the default event loop and use &lt;code&gt;uvloop&lt;/code&gt; instead.&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class=&#34;language-python&#34;&gt;import asyncio
+import uvloop
+
+asyncio.set_event_loop_policy(uvloop.EventLoopPolicy())
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;Simple as that. We import asyncio and uvloop. We set the event loop policy to uvloop&amp;rsquo;s event loop policy and we&amp;rsquo;re done. Now
+asyncio will use uvloop as the default event loop.&lt;/p&gt;
+
+&lt;h3 id=&#34;connecting-to-mongodb&#34;&gt;Connecting to Mongodb&lt;/h3&gt;
+
+&lt;p&gt;We will be using &lt;code&gt;motor&lt;/code&gt; to connect to our mongodb. Just like this:&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class=&#34;language-python&#34;&gt;from motor.motor_asyncio import AsyncIOMotorClient
+
+mongo_connection = AsyncIOMotorClient(&amp;quot;&amp;lt;mongodb connection string&amp;gt;&amp;quot;)
+
+contacts = mongo_connection.mydatabase.contacts
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;We import the &lt;code&gt;AsyncIOMotorClient&lt;/code&gt; and pass our mongodb connection string to it. We also point to our target collection
+using a name / variable so that we can easily (and directly) use that collection later. Here &lt;code&gt;mydatabase&lt;/code&gt; is the db name
+and &lt;code&gt;contacts&lt;/code&gt; is the collection name.&lt;/p&gt;
+
+&lt;h3 id=&#34;request-handlers&#34;&gt;Request Handlers&lt;/h3&gt;
+
+&lt;p&gt;Now we will dive right in and write our request handlers. For our demo application, I will create two routes. One for listing
+the contacts and one for creating new ones. But first we must instantiate sanic.&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class=&#34;language-python&#34;&gt;from sanic import Sanic
+from sanic.response import json
+
+app = Sanic(__name__)
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;Flask-like, remember? Now that we have the &lt;code&gt;app&lt;/code&gt; instance, let&amp;rsquo;s add routes to it.&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class=&#34;language-python&#34;&gt;@app.route(&amp;quot;/&amp;quot;)
+async def list(request):
+    data = await contacts.find().to_list(20)
+    for x in data:
+        x[&#39;id&#39;] = str(x[&#39;_id&#39;])
+        del x[&#39;_id&#39;]
+
+    return json(data)
+
+
+@app.route(&amp;quot;/new&amp;quot;)
+async def new(request):
+    contact = request.json
+    insert = await contacts.insert_one(contact)
+    return json({&amp;quot;inserted_id&amp;quot;: str(insert.inserted_id)})
+
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;The routes are simple and for the sake of brevity, I haven&amp;rsquo;t written any error handling codes. The &lt;code&gt;list&lt;/code&gt; function is &lt;code&gt;async&lt;/code&gt;.
+Inside it we &lt;code&gt;await&lt;/code&gt; our contacts to arrive from the database, as a list of 20 entries. In a sync style, we would use the &lt;code&gt;find&lt;/code&gt;
+method directly but now we &lt;code&gt;await&lt;/code&gt; it.&lt;/p&gt;
+
+&lt;p&gt;After we have the results, we quickly iterate over the documents and add &lt;code&gt;id&lt;/code&gt; key and remove the &lt;code&gt;_id&lt;/code&gt; key. The &lt;code&gt;_id&lt;/code&gt; key is an
+instance of &lt;code&gt;ObjectId&lt;/code&gt; which would need us to use the &lt;code&gt;bson&lt;/code&gt; package for serialization. To avoid complexity here, we just convert
+the id to string and then delete the ObjectId instance. The rest of the document is usual string based key-value pairs (&lt;code&gt;dict&lt;/code&gt;).
+So it should serialize fine.&lt;/p&gt;
+
+&lt;p&gt;In the &lt;code&gt;new&lt;/code&gt; function, we grab the incoming json payload and pass it to the &lt;code&gt;insert_one&lt;/code&gt; method directly. &lt;code&gt;request.json&lt;/code&gt; would
+contain the &lt;code&gt;dict&lt;/code&gt; representation of the json request. Check out &lt;a href=&#34;https://github.com/channelcat/sanic/blob/master/docs/request_data.md&#34;&gt;this page&lt;/a&gt;
+for other request data available to you. Here, we again &lt;code&gt;await&lt;/code&gt; the &lt;code&gt;insert_one&lt;/code&gt; call. When the response is available, we
+take the &lt;code&gt;inserted_id&lt;/code&gt; and send a response back.&lt;/p&gt;
+
+&lt;h3 id=&#34;running-the-app&#34;&gt;Running the App&lt;/h3&gt;
+
+&lt;p&gt;Let&amp;rsquo;s see the code first:&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class=&#34;language-python&#34;&gt;loop = asyncio.get_event_loop()
+
+app.run(host=&amp;quot;0.0.0.0&amp;quot;, port=8000, workers=3, debug=True, loop=loop)
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;Here we get the default event loop and pass it to &lt;code&gt;app.run&lt;/code&gt; along with other obvious options. With the &lt;code&gt;workers&lt;/code&gt; argument,
+we can set how many workers we want to use. This allows us to spin up multiple workers and take advantages of multiple cpu
+cores. On a single core machine, we can just set it to 1 or totally skip that one.&lt;/p&gt;
+
+&lt;p&gt;The &lt;code&gt;loop&lt;/code&gt; is optional as well. If we do not pass the loop, sanic will create a new one and set it as the default loop. But in
+our case, we have connected to mongodb using motor before the &lt;code&gt;app.run&lt;/code&gt; function could actually run. Motor now already uses the
+default event loop. If we don&amp;rsquo;t pass that same loop to sanic, sanic will initialize a new event loop. Our database access and
+sanic server will be on two different event loops and we won&amp;rsquo;t be able to make database calls. That is why we use the &lt;code&gt;get_event_loop&lt;/code&gt;
+function to retrieve the current default event loop and pass it to sanic. This is also why we set &lt;code&gt;uvloop&lt;/code&gt; as the default event
+loop on top of the file. Otherwise we would end up with the default loop (that comes with asyncio) and sanic would also have to
+use that. Initializing &lt;code&gt;uvloop&lt;/code&gt; at the beginning makes sure everyone uses it.&lt;/p&gt;
+
+&lt;h3 id=&#34;final-code&#34;&gt;Final Code&lt;/h3&gt;
+
+&lt;p&gt;So here&amp;rsquo;s the final code. We probably should clean up the imports and bring them up on top. But to relate to the different steps,
+I kept them as is. Also as mentioned earlier, the code has no error handling. We should write proper error handling code in all
+serious projects.&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class=&#34;language-python&#34;&gt;import asyncio
+import uvloop
+
+asyncio.set_event_loop_policy(uvloop.EventLoopPolicy())
+
+
+
+from motor.motor_asyncio import AsyncIOMotorClient
+
+mongo_connection = AsyncIOMotorClient(&amp;quot;&amp;lt;connection string&amp;gt;&amp;quot;)
+
+contacts = mongo_connection.mydatabase.contacts
+
+
+from sanic import Sanic
+from sanic.response import json
+
+app = Sanic(__name__)
+
+
+@app.route(&amp;quot;/&amp;quot;)
+async def list(request):
+    data = await contacts.find().to_list(20)
+    for x in data:
+        x[&#39;id&#39;] = str(x[&#39;_id&#39;])
+        del x[&#39;_id&#39;]
+
+    return json(data)
+
+
+@app.route(&amp;quot;/new&amp;quot;)
+async def new(request):
+    contact = request.json
+    insert = await contacts.insert_one(contact)
+    return json({&amp;quot;inserted_id&amp;quot;: str(insert.inserted_id)})
+
+
+loop = asyncio.get_event_loop()
+
+app.run(host=&amp;quot;0.0.0.0&amp;quot;, port=8000, workers=3, debug=True, loop=loop)
+
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;Now let&amp;rsquo;s try it out?&lt;/p&gt;
+
+&lt;h3 id=&#34;trying-out&#34;&gt;Trying Out&lt;/h3&gt;
+
+&lt;p&gt;I have saved the above code as &lt;code&gt;main.py&lt;/code&gt;. So let&amp;rsquo;s run it.&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class=&#34;language-sh&#34;&gt;python main.py
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;Now we can use &lt;code&gt;curl&lt;/code&gt; to try it out. Let&amp;rsquo;s first add a contact:&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class=&#34;language-sh&#34;&gt;curl -X POST -H &amp;quot;Content-Type: application/json&amp;quot; -d &#39;{&amp;quot;name&amp;quot;: &amp;quot;masnun&amp;quot;}&#39; &amp;quot;http://localhost:8000/new&amp;quot;
+
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;We should see something like:&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;{&amp;quot;inserted_id&amp;quot;:&amp;quot;582ceb772c608731477f5384&amp;quot;}
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;Let&amp;rsquo;s verify by checking &lt;code&gt;/&lt;/code&gt; -&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;curl -X GET &amp;quot;http://localhost:8000/&amp;quot;
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;If everything goes right, we should see something like:&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;[{&amp;quot;id&amp;quot;:&amp;quot;582ceb772c608731477f5384&amp;quot;,&amp;quot;name&amp;quot;:&amp;quot;masnun&amp;quot;}]
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;I hope it works for you too! :-)&lt;/p&gt;
+
+&lt;p&gt;If you have any feedback or suggestions, please feel free to share it in the comments section. I would love to disqus :-)&lt;/p&gt;
+</description>
+    </item>
+    
+    <item>
+      <title>Deploying Django Channels using Daphne</title>
+      <link>http://masnun.rocks/2016/11/02/deploying-django-channels-using-daphne/</link>
+      <pubDate>Wed, 02 Nov 2016 07:07:09 +0600</pubDate>
+      
+      <guid>http://masnun.rocks/2016/11/02/deploying-django-channels-using-daphne/</guid>
+      <description>
+
+&lt;p&gt;In one of my &lt;a href=&#34;http://masnun.rocks/2016/09/25/introduction-to-django-channels/&#34;&gt;earlier post&lt;/a&gt;, we
+have seen an overview of how Django Channels work and how it helps us build cool stuff. However, in that post,
+we covered deployment briefly. So here in this post, we shall go over deployment again, with a little more details
+and of course code samples.&lt;/p&gt;
+
+&lt;h3 id=&#34;what-do-we-need&#34;&gt;What do we need?&lt;/h3&gt;
+
+&lt;p&gt;For running Django Channels, we would use the following setup:&lt;/p&gt;
+
+&lt;ul&gt;
+&lt;li&gt;nginx as the proxy&lt;/li&gt;
+&lt;li&gt;daphne as the interface server&lt;/li&gt;
+&lt;li&gt;redis as the backend&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;p&gt;Let&amp;rsquo;s get started.&lt;/p&gt;
+
+&lt;h3 id=&#34;setup-redis-and-configure-app&#34;&gt;Setup Redis and Configure App&lt;/h3&gt;
+
+&lt;p&gt;We need to setup redis if it&amp;rsquo;s not installed already. Here&amp;rsquo;s how to do it on Ubuntu:&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;sudo apt-get install redis-server
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;If we want to use the redis backend, we also need to setup &lt;code&gt;asgi-redis&lt;/code&gt;.&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;pip install asgi_redis
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;In your &lt;code&gt;settings.py&lt;/code&gt; file, make sure you used redis as the backend and input the host properly.&lt;/p&gt;
+
+&lt;p&gt;Here&amp;rsquo;s a demo:&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;CHANNEL_LAYERS = {
+    &amp;quot;default&amp;quot;: {
+        &amp;quot;BACKEND&amp;quot;: &amp;quot;asgi_redis.RedisChannelLayer&amp;quot;,
+        &amp;quot;CONFIG&amp;quot;: {
+            &amp;quot;hosts&amp;quot;: [(&amp;quot;localhost&amp;quot;, 6379)],
+        },
+        &amp;quot;ROUTING&amp;quot;: &amp;quot;realtime.routing.channel_routing&amp;quot;,
+    },
+}
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;h3 id=&#34;starting-daphne&#34;&gt;Starting Daphne&lt;/h3&gt;
+
+&lt;p&gt;If you have installed &lt;code&gt;channels&lt;/code&gt; from pip, you should have the &lt;code&gt;daphne&lt;/code&gt; command available already. In the very
+unlikely case you don&amp;rsquo;t have it installed, here&amp;rsquo;s the command:&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;pip install daphne
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;To run daphne, we use the following command:&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;daphne -b 0.0.0.0 -p 8001 &amp;lt;app&amp;gt;.asgi:channel_layer
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;Daphne will bind to &lt;code&gt;0.0.0.0&lt;/code&gt; and use &lt;code&gt;8001&lt;/code&gt; as the port.&lt;/p&gt;
+
+&lt;p&gt;Here &lt;code&gt;&amp;lt;app&amp;gt;&lt;/code&gt; is our app name / the module that contains the &lt;code&gt;asgi.py&lt;/code&gt; file. Please refer to the previous blog post
+to know what we put in the &lt;code&gt;asgi.py&lt;/code&gt; file.&lt;/p&gt;
+
+&lt;p&gt;We now need to make sure &lt;code&gt;daphne&lt;/code&gt; is automatically started at system launch and restarted when it crashes. In this
+example, I would stick to my old upstart script. But you would probably want to explore excellent projects like
+&lt;code&gt;circus&lt;/code&gt; or &lt;code&gt;supervisor&lt;/code&gt; or at least &lt;code&gt;systemd&lt;/code&gt;.&lt;/p&gt;
+
+&lt;p&gt;Here&amp;rsquo;s the upstart script I use:&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;start on runlevel [2345]
+stop on runlevel [016]
+
+respawn
+
+script
+    cd /home/ubuntu/&amp;lt;app home&amp;gt;
+    export DJANGO_SETTINGS_MODULE=&amp;quot;&amp;lt;app&amp;gt;.production_settings&amp;quot;
+    exec daphne -b 0.0.0.0 -p 8001 &amp;lt;app&amp;gt;.asgi:channel_layer
+end script
+
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;h3 id=&#34;running-workers&#34;&gt;Running Workers&lt;/h3&gt;
+
+&lt;p&gt;We need at least one running worker before daphne can start processing requests. To run a worker, we use the
+following command:&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;python manage.py runworker
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;The &lt;code&gt;runworker&lt;/code&gt; command spawns one worker with one thread. We should have more than one ideally. It is recommended
+to have &lt;code&gt;n&lt;/code&gt; number of workers where &lt;code&gt;n&lt;/code&gt; is the number of available cpu cores.&lt;/p&gt;
+
+&lt;p&gt;Here&amp;rsquo;s a simple upstart script to keep the worker running:&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;start on runlevel [2345]
+stop on runlevel [016]
+
+respawn
+
+script
+    cd /home/ubuntu/&amp;lt;app home&amp;gt;
+    export DJANGO_SETTINGS_MODULE=&amp;quot;&amp;lt;app&amp;gt;.production_settings&amp;quot;
+    exec python3 manage.py runworker
+end script
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;It would be much easier to launch multiple workers if you use supervisord or circus.&lt;/p&gt;
+
+&lt;h3 id=&#34;nginx-conf&#34;&gt;Nginx Conf&lt;/h3&gt;
+
+&lt;p&gt;Finally here&amp;rsquo;s the nginx conf I use. Please note I handle all incoming requests with daphne which is probably
+not ideal. You can keep using &lt;code&gt;uwsgi&lt;/code&gt; for your existing, non real time parts and only handle the real time part
+with daphne. Since setting up wsgi is popular knowledge, I will just focus on what we need for daphne.&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;server {
+    listen 80;
+    client_max_body_size 20M;
+
+    location /static {
+       	alias /home/ubuntu/&amp;lt;app home&amp;gt;/static;
+
+    }
+
+    location /media {
+        alias /home/ubuntu/&amp;lt;app home&amp;gt;/media;
+
+    }
+
+    location / {
+
+
+       	    proxy_pass http://0.0.0.0:8001;
+            proxy_http_version 1.1;
+            proxy_set_header Upgrade $http_upgrade;
+            proxy_set_header Connection &amp;quot;upgrade&amp;quot;;
+
+            proxy_redirect     off;
+            proxy_set_header   Host $host;
+            proxy_set_header   X-Real-IP $remote_addr;
+            proxy_set_header   X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header   X-Forwarded-Host $server_name;
+
+        }
+
+}
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;We have our daphne server running on port &lt;code&gt;8001&lt;/code&gt; so we set a proxy to that url. Now if daphne and worker are
+running, we should be able to see our webpage when we visit the url.&lt;/p&gt;
+</description>
+    </item>
+    
+    <item>
+      <title>Getting Help Interactively in Python</title>
+      <link>http://masnun.rocks/2016/11/01/getting-help-interactively-in-python/</link>
+      <pubDate>Tue, 01 Nov 2016 17:00:51 +0600</pubDate>
+      
+      <guid>http://masnun.rocks/2016/11/01/getting-help-interactively-in-python/</guid>
+      <description>
+
+&lt;p&gt;Working with a module that you&amp;rsquo;re not familiar with? No internet? Somehow the docs are not accessible?
+Or simply feeling adventourous? Python has you covered. There are a few ways to get
+help Interactively. In this post, we will try a few of them.&lt;/p&gt;
+
+&lt;h3 id=&#34;the-dir-built-in&#34;&gt;The &lt;code&gt;dir&lt;/code&gt; built-in&lt;/h3&gt;
+
+&lt;p&gt;The &lt;code&gt;dir&lt;/code&gt; built in is a very helpful one. If you call it without any arguments, that is just
+&lt;code&gt;dir()&lt;/code&gt;, it will return the names available in the current scope. When passed with an argument,
+it would display the available attributes of the passed object (inherited or it&amp;rsquo;s own).&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class=&#34;language-python&#34;&gt;&amp;gt;&amp;gt;&amp;gt; import os
+&amp;gt;&amp;gt;&amp;gt; dir(os)
+[&#39;CLD_CONTINUED&#39;, &#39;CLD_DUMPED&#39;, &#39;CLD_EXITED&#39;, &#39;CLD_TRAPPED&#39;, &#39;EX_CANTCREAT&#39;, &#39;EX_CONFIG&#39;, &#39;EX_DATAERR&#39;, &#39;EX_IOERR&#39;, &#39;EX_NOHOST&#39;, &#39;EX_NOINPUT&#39;, &#39;EX_NOPERM&#39;, &#39;EX_NOUSER&#39;, &#39;EX_OK&#39;, &#39;EX_OSERR&#39;, &#39;EX_OSFILE&#39;, &#39;EX_PROTOCOL&#39;, &#39;EX_SOFTWARE&#39;, &#39;EX_TEMPFAIL&#39;, &#39;EX_UNAVAILABLE&#39;, &#39;EX_USAGE&#39;, &#39;F_LOCK&#39;, &#39;F_OK&#39;, &#39;F_TEST&#39;, &#39;F_TLOCK&#39;, &#39;F_ULOCK&#39;, &#39;MutableMapping&#39;, &#39;NGROUPS_MAX&#39;, &#39;O_ACCMODE&#39;, &#39;O_APPEND&#39;, &#39;O_ASYNC&#39;, &#39;O_CLOEXEC&#39;, &#39;O_CREAT&#39;, &#39;O_DIRECTORY&#39;, &#39;O_DSYNC&#39;, &#39;O_EXCL&#39;, &#39;O_EXLOCK&#39;, &#39;O_NDELAY&#39;, &#39;O_NOCTTY&#39;, &#39;O_NOFOLLOW&#39;, &#39;O_NONBLOCK&#39;, &#39;O_RDONLY&#39;, &#39;O_RDWR&#39;, &#39;O_SHLOCK&#39;, &#39;O_SYNC&#39;, &#39;O_TRUNC&#39;, &#39;O_WRONLY&#39;, &#39;PRIO_PGRP&#39;, &#39;PRIO_PROCESS&#39;, &#39;PRIO_USER&#39;, &#39;P_ALL&#39;, &#39;P_NOWAIT&#39;, &#39;P_NOWAITO&#39;, &#39;P_PGID&#39;, &#39;P_PID&#39;, &#39;P_WAIT&#39;, &#39;RTLD_GLOBAL&#39;, &#39;RTLD_LAZY&#39;, &#39;RTLD_LOCAL&#39;, &#39;RTLD_NODELETE&#39;, &#39;RTLD_NOLOAD&#39;, &#39;RTLD_NOW&#39;, &#39;R_OK&#39;, &#39;SCHED_FIFO&#39;, &#39;SCHED_OTHER&#39;, &#39;SCHED_RR&#39;, &#39;SEEK_CUR&#39;, &#39;SEEK_END&#39;, &#39;SEEK_SET&#39;, &#39;ST_NOSUID&#39;, &#39;ST_RDONLY&#39;, &#39;TMP_MAX&#39;, &#39;WCONTINUED&#39;, &#39;WCOREDUMP&#39;, &#39;WEXITED&#39;, &#39;WEXITSTATUS&#39;, &#39;WIFCONTINUED&#39;, &#39;WIFEXITED&#39;, &#39;WIFSIGNALED&#39;, &#39;WIFSTOPPED&#39;, &#39;WNOHANG&#39;, &#39;WNOWAIT&#39;, &#39;WSTOPPED&#39;, &#39;WSTOPSIG&#39;, &#39;WTERMSIG&#39;, &#39;WUNTRACED&#39;, &#39;W_OK&#39;, &#39;X_OK&#39;, &#39;_Environ&#39;, &#39;__all__&#39;, &#39;__builtins__&#39;, &#39;__cached__&#39;, &#39;__doc__&#39;, &#39;__file__&#39;, &#39;__loader__&#39;, &#39;__name__&#39;, &#39;__package__&#39;, &#39;__spec__&#39;, &#39;_execvpe&#39;, &#39;_exists&#39;, &#39;_exit&#39;, &#39;_fwalk&#39;, &#39;_get_exports_list&#39;, &#39;_putenv&#39;, &#39;_spawnvef&#39;, &#39;_unsetenv&#39;, &#39;_wrap_close&#39;, &#39;abort&#39;, &#39;access&#39;, &#39;altsep&#39;, &#39;chdir&#39;, &#39;chflags&#39;, &#39;chmod&#39;, &#39;chown&#39;, &#39;chroot&#39;, &#39;close&#39;, &#39;closerange&#39;, &#39;confstr&#39;, &#39;confstr_names&#39;, &#39;cpu_count&#39;, &#39;ctermid&#39;, &#39;curdir&#39;, &#39;defpath&#39;, &#39;device_encoding&#39;, &#39;devnull&#39;, &#39;dup&#39;, &#39;dup2&#39;, &#39;environ&#39;, &#39;environb&#39;, &#39;errno&#39;, &#39;error&#39;, &#39;execl&#39;, &#39;execle&#39;, &#39;execlp&#39;, &#39;execlpe&#39;, &#39;execv&#39;, &#39;execve&#39;, &#39;execvp&#39;, &#39;execvpe&#39;, &#39;extsep&#39;, &#39;fchdir&#39;, &#39;fchmod&#39;, &#39;fchown&#39;, &#39;fdopen&#39;, &#39;fork&#39;, &#39;forkpty&#39;, &#39;fpathconf&#39;, &#39;fsdecode&#39;, &#39;fsencode&#39;, &#39;fstat&#39;, &#39;fstatvfs&#39;, &#39;fsync&#39;, &#39;ftruncate&#39;, &#39;fwalk&#39;, &#39;get_blocking&#39;, &#39;get_exec_path&#39;, &#39;get_inheritable&#39;, &#39;get_terminal_size&#39;, &#39;getcwd&#39;, &#39;getcwdb&#39;, &#39;getegid&#39;, &#39;getenv&#39;, &#39;getenvb&#39;, &#39;geteuid&#39;, &#39;getgid&#39;, &#39;getgrouplist&#39;, &#39;getgroups&#39;, &#39;getloadavg&#39;, &#39;getlogin&#39;, &#39;getpgid&#39;, &#39;getpgrp&#39;, &#39;getpid&#39;, &#39;getppid&#39;, &#39;getpriority&#39;, &#39;getsid&#39;, &#39;getuid&#39;, &#39;initgroups&#39;, &#39;isatty&#39;, &#39;kill&#39;, &#39;killpg&#39;, &#39;lchflags&#39;, &#39;lchmod&#39;, &#39;lchown&#39;, &#39;linesep&#39;, &#39;link&#39;, &#39;listdir&#39;, &#39;lockf&#39;, &#39;lseek&#39;, &#39;lstat&#39;, &#39;major&#39;, &#39;makedev&#39;, &#39;makedirs&#39;, &#39;minor&#39;, &#39;mkdir&#39;, &#39;mkfifo&#39;, &#39;mknod&#39;, &#39;name&#39;, &#39;nice&#39;, &#39;open&#39;, &#39;openpty&#39;, &#39;pardir&#39;, &#39;path&#39;, &#39;pathconf&#39;, &#39;pathconf_names&#39;, &#39;pathsep&#39;, &#39;pipe&#39;, &#39;popen&#39;, &#39;pread&#39;, &#39;putenv&#39;, &#39;pwrite&#39;, &#39;read&#39;, &#39;readlink&#39;, &#39;readv&#39;, &#39;remove&#39;, &#39;removedirs&#39;, &#39;rename&#39;, &#39;renames&#39;, &#39;replace&#39;, &#39;rmdir&#39;, &#39;scandir&#39;, &#39;sched_get_priority_max&#39;, &#39;sched_get_priority_min&#39;, &#39;sched_yield&#39;, &#39;sendfile&#39;, &#39;sep&#39;, &#39;set_blocking&#39;, &#39;set_inheritable&#39;, &#39;setegid&#39;, &#39;seteuid&#39;, &#39;setgid&#39;, &#39;setgroups&#39;, &#39;setpgid&#39;, &#39;setpgrp&#39;, &#39;setpriority&#39;, &#39;setregid&#39;, &#39;setreuid&#39;, &#39;setsid&#39;, &#39;setuid&#39;, &#39;spawnl&#39;, &#39;spawnle&#39;, &#39;spawnlp&#39;, &#39;spawnlpe&#39;, &#39;spawnv&#39;, &#39;spawnve&#39;, &#39;spawnvp&#39;, &#39;spawnvpe&#39;, &#39;st&#39;, &#39;stat&#39;, &#39;stat_float_times&#39;, &#39;stat_result&#39;, &#39;statvfs&#39;, &#39;statvfs_result&#39;, &#39;strerror&#39;, &#39;supports_bytes_environ&#39;, &#39;supports_dir_fd&#39;, &#39;supports_effective_ids&#39;, &#39;supports_fd&#39;, &#39;supports_follow_symlinks&#39;, &#39;symlink&#39;, &#39;sync&#39;, &#39;sys&#39;, &#39;sysconf&#39;, &#39;sysconf_names&#39;, &#39;system&#39;, &#39;tcgetpgrp&#39;, &#39;tcsetpgrp&#39;, &#39;terminal_size&#39;, &#39;times&#39;, &#39;times_result&#39;, &#39;truncate&#39;, &#39;ttyname&#39;, &#39;umask&#39;, &#39;uname&#39;, &#39;uname_result&#39;, &#39;unlink&#39;, &#39;unsetenv&#39;, &#39;urandom&#39;, &#39;utime&#39;, &#39;wait&#39;, &#39;wait3&#39;, &#39;wait4&#39;, &#39;waitpid&#39;, &#39;walk&#39;, &#39;write&#39;, &#39;writev&#39;]
+&amp;gt;&amp;gt;&amp;gt;
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;Coupled with &lt;code&gt;getattr&lt;/code&gt;, you can actually write your own custom utilities to better inspect objects.&lt;/p&gt;
+
+&lt;h3 id=&#34;the-help-built-in&#34;&gt;The &lt;code&gt;help&lt;/code&gt; built-in&lt;/h3&gt;
+
+&lt;p&gt;I guess I don&amp;rsquo;t have to tell you how &lt;code&gt;help&lt;/code&gt;-ful this one can be?&lt;/p&gt;
+
+&lt;blockquote&gt;
+&lt;p&gt;Did you know the &lt;code&gt;help&lt;/code&gt; built in is based on &lt;code&gt;pydoc.help&lt;/code&gt;?&lt;/p&gt;
+&lt;/blockquote&gt;
+
+&lt;p&gt;If you just call &lt;code&gt;help&lt;/code&gt;  without any arguments, it will launch an interactive help prompt
+where you can just type in names and it will display help for that. Here&amp;rsquo;s an example:&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class=&#34;language-python&#34;&gt;&amp;gt;&amp;gt;&amp;gt; help()
+
+Welcome to Python 3.5&#39;s help utility!
+
+If this is your first time using Python, you should definitely check out
+the tutorial on the Internet at http://docs.python.org/3.5/tutorial/.
+
+Enter the name of any module, keyword, or topic to get help on writing
+Python programs and using Python modules.  To quit this help utility and
+return to the interpreter, just type &amp;quot;quit&amp;quot;.
+
+To get a list of available modules, keywords, symbols, or topics, type
+&amp;quot;modules&amp;quot;, &amp;quot;keywords&amp;quot;, &amp;quot;symbols&amp;quot;, or &amp;quot;topics&amp;quot;.  Each module also comes
+with a one-line summary of what it does; to list the modules whose name
+or summary contain a given string such as &amp;quot;spam&amp;quot;, type &amp;quot;modules spam&amp;quot;.
+
+help&amp;gt; list
+
+help&amp;gt;
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;When you type in &lt;code&gt;list&lt;/code&gt; and hit enter, it will show you the docs for the &lt;code&gt;list&lt;/code&gt; built in. To quit, press
+&lt;code&gt;q&lt;/code&gt;. As described in the text above, typing in &amp;ldquo;modules&amp;rdquo;, &amp;ldquo;keywords&amp;rdquo; etc will list what is available.&lt;/p&gt;
+
+&lt;p&gt;Interestingly the help functionality is built on top of &lt;code&gt;pydoc&lt;/code&gt; so it will be able to help you with most
+of the installed modules (even the third party ones) as long as the modules have doctstrings available.
+Brilliant, no?&lt;/p&gt;
+
+&lt;p&gt;Now if you call the &lt;code&gt;help&lt;/code&gt; callable with an argument, it will display help for that item. The above example
+for viewing the docs for &lt;code&gt;list&lt;/code&gt; can be done this way too:&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class=&#34;language-python&#34;&gt;&amp;gt;&amp;gt;&amp;gt; help(list)
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;Neat, huh?&lt;/p&gt;
+
+&lt;h3 id=&#34;using-the-pydoc-module&#34;&gt;Using the &lt;code&gt;pydoc&lt;/code&gt; Module&lt;/h3&gt;
+
+&lt;p&gt;In the previous section, we mentioned &lt;code&gt;pydoc&lt;/code&gt;. From the name, you can probably guess what it does. Just to be
+certain, let&amp;rsquo;s try this:&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class=&#34;language-python&#34;&gt;&amp;gt;&amp;gt;&amp;gt; import pydoc
+&amp;gt;&amp;gt;&amp;gt; help(pydoc)
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;As you can read in there, the &lt;code&gt;pydoc&lt;/code&gt; module generates documentation in html or text format for interactive
+usages (like in the previous section). It can read Python source files, parse the docstrings and generate
+helpful information for us. Pydoc module comes with your Python installation. So it is always available to you.&lt;/p&gt;
+
+&lt;p&gt;There are some interesting use cases of this module. You can run it from the command line. Just use
+&lt;code&gt;pydoc &amp;lt;name&amp;gt;&lt;/code&gt; where the &lt;code&gt;&amp;lt;name&amp;gt;&lt;/code&gt; is the name of a function, module, class etc. It will display
+the same interactive, generated docs we get from &lt;code&gt;help(&amp;lt;name&amp;gt;)&lt;/code&gt;.&lt;/p&gt;
+
+&lt;p&gt;And then &lt;code&gt;pydoc -k &amp;lt;keyword&amp;gt;&lt;/code&gt; would search the keyword in the available modules&amp;rsquo; synopsis.&lt;/p&gt;
+
+&lt;p&gt;If you would like to browse the docs on a web browser, you can run &lt;code&gt;pydoc -b&lt;/code&gt; and it will run a
+server and open your browser, pointing to the address of the server. If you would like to set the port
+yourself, use &lt;code&gt;pydoc -p &amp;lt;port&amp;gt;&lt;/code&gt; and then in the prompt, type &amp;ldquo;b&amp;rdquo; to open the browser. You can browse
+the docs and search as needed.&lt;/p&gt;
+
+&lt;h3 id=&#34;the-inspect-module&#34;&gt;The &lt;code&gt;inspect&lt;/code&gt; Module&lt;/h3&gt;
+
+&lt;p&gt;The &lt;code&gt;inspect&lt;/code&gt; module has some interesting use cases too. It can help us know more about different objects
+in runtime.&lt;/p&gt;
+
+&lt;p&gt;The following functions check for object types:&lt;/p&gt;
+
+&lt;ul&gt;
+&lt;li&gt;&lt;code&gt;ismodule()&lt;/code&gt;&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;isclass()&lt;/code&gt;&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;ismethod()&lt;/code&gt;&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;isfunction()&lt;/code&gt;&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;isgeneratorfunction()&lt;/code&gt;&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;isgenerator()&lt;/code&gt;&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;istraceback()&lt;/code&gt;&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;isframe()&lt;/code&gt;&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;iscode()&lt;/code&gt;&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;isbuiltin()&lt;/code&gt;&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;isroutine()&lt;/code&gt;&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;p&gt;We can use the &lt;code&gt;getmembers()&lt;/code&gt; function to get all the members of an object, class or module. We can filter
+the members by passing one of the above functions as the second argument.&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class=&#34;language-python&#34;&gt;&amp;gt;&amp;gt;&amp;gt; len(inspect.getmembers(os))
+284
+&amp;gt;&amp;gt;&amp;gt; len(inspect.getmembers(os, inspect.isclass))
+9
+&amp;gt;&amp;gt;&amp;gt;
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;The &lt;code&gt;getdoc&lt;/code&gt; function can be used to retrieve available documentation from an object.&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class=&#34;language-python&#34;&gt;&amp;gt;&amp;gt;&amp;gt; inspect.getdoc(list)
+&amp;quot;list() -&amp;gt; new empty list\nlist(iterable) -&amp;gt; new list initialized from iterable&#39;s items&amp;quot;
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;The inspect module has some other cool functions too. Do check them out. And of course, you know how! ;-)&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class=&#34;language-python&#34;&gt;&amp;gt;&amp;gt;&amp;gt; import inspect
+&amp;gt;&amp;gt;&amp;gt; help(inspect)
+&lt;/code&gt;&lt;/pre&gt;
+</description>
+    </item>
+    
+    <item>
+      <title>Async Python:  The Different Forms of Concurrency</title>
+      <link>http://masnun.rocks/2016/10/06/async-python-the-different-forms-of-concurrency/</link>
+      <pubDate>Thu, 06 Oct 2016 12:10:03 +0600</pubDate>
+      
+      <guid>http://masnun.rocks/2016/10/06/async-python-the-different-forms-of-concurrency/</guid>
+      <description>
+
+&lt;p&gt;With the advent of Python 3 the way we&amp;rsquo;re hearing a lot of buzz about &amp;ldquo;async&amp;rdquo; and &amp;ldquo;concurrency&amp;rdquo;, one
+might simply assume that Python recently introduced these concepts/capabilities. But that would be quite
+far from the truth. We have had async and concurrent operations for quite some times now. Also many
+beginners may think that &lt;code&gt;asyncio&lt;/code&gt; is the only/best way to do async/concurrent operations. In this post
+we shall explore the different ways we can achieve concurrency and the benefits/drawbacks of them.&lt;/p&gt;
+
+&lt;h3 id=&#34;defining-the-terms&#34;&gt;Defining The Terms&lt;/h3&gt;
+
+&lt;p&gt;Before we dive into the technical aspects, it is essential to have some basic understanding of the terms
+frequently used in this context.&lt;/p&gt;
+
+&lt;h4 id=&#34;sync-vs-async&#34;&gt;Sync vs Async&lt;/h4&gt;
+
+&lt;p&gt;In Syncrhonous operations, the tasks are executed in sync, one after one. In asynchronous operations,
+tasks may start and complete independent of each other. One async task may start and continue running
+while the execution moves on to a new task. Async tasks don&amp;rsquo;t block (make the execution wait for it&amp;rsquo;s
+completion) operations and usually run in the background.&lt;/p&gt;
+
+&lt;p&gt;For example, you have to call a travel agency to book for your next vacation. And you need to send an
+email to your boss before you go on the tour. In synchronous fashion, you would first call the travel
+agency, if they put you on hold for a moment, you keep waiting and waiting. Once it&amp;rsquo;s done, you start
+writing the email to your boss. Here you complete one task after another. But if you be clever and
+while you are waiting on hold, you could start writing up the email, when they talk to you, you pause
+writing the email, talk to them and then resume the email writing. You could also ask a friend to
+make the call while you finish that email. This is asynchronicity. Tasks don&amp;rsquo;t block one another.&lt;/p&gt;
+
+&lt;h4 id=&#34;concurrency-and-parallelism&#34;&gt;Concurrency and Parallelism&lt;/h4&gt;
+
+&lt;p&gt;Concurrency implies that two tasks make progress together. In our previous example, when we
+considered the async example, we were making progress on both the call with the travel agent and
+writing the email. This is concurrency.&lt;/p&gt;
+
+&lt;p&gt;When we talked about taking help from a friend with the call, in that case both tasks would be running
+in parallel.&lt;/p&gt;
+
+&lt;p&gt;Parallelism is in fact a form of concurrency. But parallelism is hardware dependent. For example if
+there&amp;rsquo;s only one core in the CPU, two operations can&amp;rsquo;t really run in parallel. They just share time
+slices from the same core. This is concurrency but not parallelism. But when we have multiple cores,
+we can actually run two or more operations (depending on the number of cores) in parallel.&lt;/p&gt;
+
+&lt;h4 id=&#34;quick-recap&#34;&gt;Quick Recap&lt;/h4&gt;
+
+&lt;p&gt;So this is what we have realized so far:&lt;/p&gt;
+
+&lt;ul&gt;
+    &lt;li&gt; &lt;b&gt;Sync:&lt;/b&gt; Blocking operations.&lt;/li&gt;
+    &lt;li&gt; &lt;b&gt;Async:&lt;/b&gt; Non blocking operations.&lt;/li&gt;
+    &lt;li&gt; &lt;b&gt;Concurrency:&lt;/b&gt; Making progress together.&lt;/li&gt;
+    &lt;li&gt; &lt;b&gt;Parallelism:&lt;/b&gt; Making progress in parallel.&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;p&gt;&lt;br/&gt;&lt;/p&gt;
+
+&lt;p&gt;&lt;center&gt;
+    &lt;em&gt;Parallelism implies Concurrency. But Concurrency doesn&amp;rsquo;t always mean Parallelism.&lt;/em&gt;
+&lt;/center&gt;&lt;/p&gt;
+
+&lt;p&gt;&lt;br/&gt;&lt;/p&gt;
+
+&lt;h3 id=&#34;threads-processes&#34;&gt;Threads &amp;amp; Processes&lt;/h3&gt;
+
+&lt;p&gt;Python has had &lt;strong&gt;Threads&lt;/strong&gt; for a very long time. Threads allow us to run our operations concurrently. But there was/is a problem with
+the &lt;strong&gt;Global Interpreter Lock (GIL)&lt;/strong&gt; for which the threading could not provide true parallelism. However, with &lt;strong&gt;multiprocessing&lt;/strong&gt;,
+it is now possible to leverage multiple cores with Python.&lt;/p&gt;
+
+&lt;h4 id=&#34;threads&#34;&gt;Threads&lt;/h4&gt;
+
+&lt;p&gt;Let&amp;rsquo;s see a quick example. In the following code, the &lt;code&gt;worker&lt;/code&gt; function will be run on multiple threads, asynchronously and
+concurrently.&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class=&#34;language-python&#34;&gt;import threading
+import time
+import random
+
+
+def worker(number):
+    sleep = random.randrange(1, 10)
+    time.sleep(sleep)
+    print(&amp;quot;I am Worker {}, I slept for {} seconds&amp;quot;.format(number, sleep))
+
+
+for i in range(5):
+    t = threading.Thread(target=worker, args=(i,))
+    t.start()
+
+print(&amp;quot;All Threads are queued, let&#39;s see when they finish!&amp;quot;)
+
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;Here&amp;rsquo;s a sample output from a run on my machine:&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class=&#34;language-text&#34;&gt;$ python thread_test.py
+All Threads are queued, let&#39;s see when they finish!
+I am Worker 1, I slept for 1 seconds
+I am Worker 3, I slept for 4 seconds
+I am Worker 4, I slept for 5 seconds
+I am Worker 2, I slept for 7 seconds
+I am Worker 0, I slept for 9 seconds
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;So you can see we start 5 threads, they make progress together and when we start the threads (and thus executing the worker function),
+the operation does not wait for the threads to complete before moving on to the next print statement. So this is an async operation.&lt;/p&gt;
+
+&lt;p&gt;In our example, we passed a function to the &lt;code&gt;Thread&lt;/code&gt; constructor. But if we wanted we could also subclass it and implement the code
+as a method (in a more OOP way).&lt;/p&gt;
+
+&lt;p&gt;&lt;strong&gt;Further Reading:&lt;/strong&gt;&lt;/p&gt;
+
+&lt;p&gt;To know about Threads in details, you can follow these resources:&lt;/p&gt;
+
+&lt;ul&gt;
+&lt;li&gt;&lt;a href=&#34;https://pymotw.com/3/threading/index.html&#34;&gt;https://pymotw.com/3/threading/index.html&lt;/a&gt;&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;h4 id=&#34;global-interpreter-lock-gil&#34;&gt;Global Interpreter Lock (GIL)&lt;/h4&gt;
+
+&lt;p&gt;The Global Interpreter Lock aka GIL was introduced to make CPython&amp;rsquo;s memory handling easier and to allow better integrations with C
+(for example the extensions). The GIL is a locking mechanism that the Python interpreter runs only one thread at a time. That is
+only one thread can execute Python byte code at any given time. This GIL makes sure that multiple threads &lt;strong&gt;DO NOT&lt;/strong&gt; run in parallel.&lt;/p&gt;
+
+&lt;p&gt;Quick facts about the GIL:&lt;/p&gt;
+
+&lt;ul&gt;
+&lt;li&gt;One thread can run at a time.&lt;/li&gt;
+&lt;li&gt;The Python Interpreter switches between threads to allow concurrency.&lt;/li&gt;
+&lt;li&gt;The GIL is only applicable to CPython (the defacto implementation). Other implementations like Jython, IronPython don&amp;rsquo;t have GIL.&lt;/li&gt;
+&lt;li&gt;GIL makes single threaded programs fast.&lt;/li&gt;
+&lt;li&gt;For I/O bound operations, GIL usually doesn&amp;rsquo;t harm much.&lt;/li&gt;
+&lt;li&gt;GIL makes it easy to integrate non thread safe C libraries, thansk to the GIL, we have many high performance extensions/modules written in C.&lt;/li&gt;
+&lt;li&gt;For CPU bound tasks, the interpreter checks between &lt;code&gt;N&lt;/code&gt; ticks and switches threads. So one thread does not block others.&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;p&gt;Many people see the &lt;code&gt;GIL&lt;/code&gt; as a weakness. I see it as a blessing since it has made libraries like NumPy, SciPy possible which have
+taken Python an unique position in the scientific communities.&lt;/p&gt;
+
+&lt;p&gt;&lt;strong&gt;Further Reading:&lt;/strong&gt;&lt;/p&gt;
+
+&lt;p&gt;These resources can help dive deeper into the GIL:&lt;/p&gt;
+
+&lt;ul&gt;
+&lt;li&gt;&lt;a href=&#34;http://www.dabeaz.com/python/UnderstandingGIL.pdf&#34;&gt;http://www.dabeaz.com/python/UnderstandingGIL.pdf&lt;/a&gt;&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;h4 id=&#34;processes&#34;&gt;Processes&lt;/h4&gt;
+
+&lt;p&gt;To get parallelism, Python introduced the &lt;code&gt;multiprocessing&lt;/code&gt; module which provides APIs which will feel very similar if you have used
+Threading before.&lt;/p&gt;
+
+&lt;p&gt;In fact, we will just go and change our previous example. Here&amp;rsquo;s the modified version that uses &lt;code&gt;Process&lt;/code&gt; instead of &lt;code&gt;Thread&lt;/code&gt;.&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class=&#34;language-python&#34;&gt;
+import multiprocessing
+import time
+import random
+
+
+def worker(number):
+    sleep = random.randrange(1, 10)
+    time.sleep(sleep)
+    print(&amp;quot;I am Worker {}, I slept for {} seconds&amp;quot;.format(number, sleep))
+
+
+for i in range(5):
+    t = multiprocessing.Process(target=worker, args=(i,))
+    t.start()
+
+print(&amp;quot;All Processes are queued, let&#39;s see when they finish!&amp;quot;)
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;So what&amp;rsquo;s changed? I just imported the &lt;code&gt;multiprocessing&lt;/code&gt; module instead of &lt;code&gt;threading&lt;/code&gt;. And then instead of &lt;code&gt;Thread&lt;/code&gt;, I used
+&lt;code&gt;Process&lt;/code&gt;. That&amp;rsquo;s it, really! Now instead of multi threading, we are using multiple processes which are running on different core
+of your CPU (assuming you have multiple cores).&lt;/p&gt;
+
+&lt;p&gt;With the &lt;code&gt;Pool&lt;/code&gt; class, we can also distribute one function execution across multiple processes for different input values. If we
+take the example from the official docs:&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class=&#34;language-python&#34;&gt;from multiprocessing import Pool
+
+def f(x):
+    return x*x
+
+if __name__ == &#39;__main__&#39;:
+    p = Pool(5)
+    print(p.map(f, [1, 2, 3]))
+
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;Here, instead of iterating over the list of values and calling &lt;code&gt;f&lt;/code&gt; on them one by one, we are actually running the function on
+different processes. One process executes &lt;code&gt;f(1)&lt;/code&gt;, another runs &lt;code&gt;f(2)&lt;/code&gt; and another runs &lt;code&gt;f(3)&lt;/code&gt;. Finally the results are again
+aggregated in a list. This would allow us to break down heavy computations into smaller parts and run them in parallel for faster
+calculation.&lt;/p&gt;
+
+&lt;p&gt;&lt;strong&gt;Further Reading:&lt;/strong&gt;&lt;/p&gt;
+
+&lt;ul&gt;
+&lt;li&gt;&lt;a href=&#34;https://pymotw.com/3/multiprocessing/index.html&#34;&gt;https://pymotw.com/3/multiprocessing/index.html&lt;/a&gt;&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;h4 id=&#34;the-concurrent-futures-module&#34;&gt;The &lt;code&gt;concurrent.futures&lt;/code&gt; module&lt;/h4&gt;
+
+&lt;p&gt;The &lt;code&gt;concurrent.futures&lt;/code&gt; module packs some really great stuff for writing async codes easily. My favorites are the &lt;code&gt;ThreadPoolExecutor&lt;/code&gt;
+and the &lt;code&gt;ProcessPoolExecutor&lt;/code&gt;. These executors maintain a pool of threads or processes. We submit our tasks to the pool and it
+runs the tasks in available thread/process. A &lt;code&gt;Future&lt;/code&gt; object is returned which we can use to query and get the result when the task
+has completed.&lt;/p&gt;
+
+&lt;p&gt;Here&amp;rsquo;s an example of &lt;code&gt;ThreadPoolExecutor&lt;/code&gt;:&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class=&#34;language-python&#34;&gt;from concurrent.futures import ThreadPoolExecutor
+from time import sleep
+ 
+def return_after_5_secs(message):
+    sleep(5)
+    return message
+ 
+pool = ThreadPoolExecutor(3)
+ 
+future = pool.submit(return_after_5_secs, (&amp;quot;hello&amp;quot;))
+print(future.done())
+sleep(5)
+print(future.done())
+print(future.result())
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;I have a blog post on the &lt;code&gt;concurrent.futures&lt;/code&gt; module here: &lt;a href=&#34;http://masnun.com/2016/03/29/python-a-quick-introduction-to-the-concurrent-futures-module.html&#34;&gt;http://masnun.com/2016/03/29/python-a-quick-introduction-to-the-concurrent-futures-module.html&lt;/a&gt;
+which might be helpful for exploring the module deeper.&lt;/p&gt;
+
+&lt;p&gt;&lt;strong&gt;Further Reading:&lt;/strong&gt;&lt;/p&gt;
+
+&lt;ul&gt;
+&lt;li&gt;&lt;a href=&#34;https://pymotw.com/3/concurrent.futures/&#34;&gt;https://pymotw.com/3/concurrent.futures/&lt;/a&gt;&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;p&gt;&lt;br/&gt;&lt;/p&gt;
+
+&lt;h3 id=&#34;asyncio-why-what-and-how&#34;&gt;Asyncio - Why, What and How?&lt;/h3&gt;
+
+&lt;p&gt;You probably have the question many people in the Python community have - What does asyncio bring new to the table? Why did we need
+one more way to do async I/O? Did we not have threads and processes already? Let&amp;rsquo;s see!&lt;/p&gt;
+
+&lt;h4 id=&#34;why-do-we-need-asyncio&#34;&gt;Why do we need asyncio?&lt;/h4&gt;
+
+&lt;p&gt;Processes are costly to spawn. So for I/O, Threads are chosen largely. We know that I/O depends on external stuff - slow disks or
+nasty network lags make I/O often unpredictable. Now, let&amp;rsquo;s assume that we are using threads for I/O bound operations. 3 threads
+are doing different I/O tasks. The interpreter would need to switch between the concurrent threads and give each of them some time
+in turns. Let&amp;rsquo;s call the threads - &lt;code&gt;T1&lt;/code&gt;, &lt;code&gt;T2&lt;/code&gt; and &lt;code&gt;T3&lt;/code&gt;. The three threads have started their I/O operation. &lt;code&gt;T3&lt;/code&gt; completes it first.
+&lt;code&gt;T2&lt;/code&gt; and &lt;code&gt;T1&lt;/code&gt; are still waiting for I/O.  The Python interpreter switches to &lt;code&gt;T1&lt;/code&gt; but it&amp;rsquo;s still waiting. Fine, so it moves to &lt;code&gt;T2&lt;/code&gt;,
+it&amp;rsquo;s still waiting and then it moves to &lt;code&gt;T3&lt;/code&gt; which is ready and executes the code. Do you see the problem here?&lt;/p&gt;
+
+&lt;p&gt;&lt;code&gt;T3&lt;/code&gt; was ready but the interpreter switched between &lt;code&gt;T2&lt;/code&gt; and &lt;code&gt;T1&lt;/code&gt; first - that incurred switching costs  which we could have avoided
+ if the interpreter first moved to &lt;code&gt;T3&lt;/code&gt;, right?&lt;/p&gt;
+
+&lt;h4 id=&#34;what-is-asyncio&#34;&gt;What is asyncio?&lt;/h4&gt;
+
+&lt;p&gt;Asyncio provides us an event loop along with other good stuff. The event loop tracks different I/O events and switches to
+ tasks which are  ready and pauses the ones which are waiting on I/O. Thus we don&amp;rsquo;t waste time on tasks which are not ready to run
+ right now.&lt;/p&gt;
+
+&lt;p&gt;The idea is very simple. There&amp;rsquo;s an event loop. And we have functions that run async, I/O operations. We give our functions to the
+ event loop and ask it to run those for us. The event loop gives us back a &lt;code&gt;Future&lt;/code&gt; object, it&amp;rsquo;s like a promise that we will get
+ something back in the &lt;em&gt;future&lt;/em&gt;. We hold on to the promise, time to time check if it has a value (when we feel impatient) and finally
+ when the future has a value, we use it in some other operations.&lt;/p&gt;
+
+&lt;p&gt;Asyncio uses generators and coroutines to pause and resume tasks. You can read these posts for more details:&lt;/p&gt;
+
+&lt;ul&gt;
+&lt;li&gt;&lt;a href=&#34;http://masnun.com/2015/11/20/python-asyncio-future-task-and-the-event-loop.html&#34;&gt;http://masnun.com/2015/11/20/python-asyncio-future-task-and-the-event-loop.html&lt;/a&gt;&lt;/li&gt;
+&lt;li&gt;&lt;a href=&#34;http://masnun.com/2015/11/13/python-generators-coroutines-native-coroutines-and-async-await.html&#34;&gt;http://masnun.com/2015/11/13/python-generators-coroutines-native-coroutines-and-async-await.html&lt;/a&gt;&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;h4 id=&#34;how-do-we-use-asyncio&#34;&gt;How do we use asyncio?&lt;/h4&gt;
+
+&lt;p&gt;Before we beging, let&amp;rsquo;s see example codes:&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class=&#34;language-python&#34;&gt;import asyncio
+import datetime
+import random
+
+
+async def my_sleep_func():
+    await asyncio.sleep(random.randint(0, 5))
+
+
+async def display_date(num, loop):
+    end_time = loop.time() + 50.0
+    while True:
+        print(&amp;quot;Loop: {} Time: {}&amp;quot;.format(num, datetime.datetime.now()))
+        if (loop.time() + 1.0) &amp;gt;= end_time:
+            break
+        await my_sleep_func()
+
+
+loop = asyncio.get_event_loop()
+
+asyncio.ensure_future(display_date(1, loop))
+asyncio.ensure_future(display_date(2, loop))
+
+loop.run_forever()
+
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;Please note that the &lt;code&gt;async/await&lt;/code&gt; syntax is Python 3.5+ only. if we walk through the codes:&lt;/p&gt;
+
+&lt;ul&gt;
+&lt;li&gt;We have an async function &lt;code&gt;display_date&lt;/code&gt; which takes a number (as an identifier) and the event loop as parameters.&lt;/li&gt;
+&lt;li&gt;The function has an infinite loop that breaks after 50 secs. But during this 50 sec period, it repeatedly prints out the time
+and takes a nap. The &lt;code&gt;await&lt;/code&gt; function can wait on other async functions (coroutines) to complete.&lt;/li&gt;
+&lt;li&gt;We pass the function to event loop (using the &lt;code&gt;ensure_future&lt;/code&gt; method).&lt;/li&gt;
+&lt;li&gt;We start running the event loop.&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;p&gt;Whenever the &lt;code&gt;await&lt;/code&gt; call is made, asyncio understands that the function is probably going to need some time. So it pauses the execution,
+starts monitoring any I/O event related to it and allows tasks to run. When asyncio notices that paused function&amp;rsquo;s I/O is ready, it
+resumes the function.&lt;/p&gt;
+
+&lt;h3 id=&#34;making-the-right-choice&#34;&gt;Making the Right Choice&lt;/h3&gt;
+
+&lt;p&gt;We have walked through the most popular forms of concurrency. But the question remains - when should choose which one?
+It really depends on the use cases. From my experience (and reading), I tend to follow this pseudo code:&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class=&#34;language-python&#34;&gt;if io_bound:
+    if io_very_slow:
+        print(&amp;quot;Use Asyncio&amp;quot;)
+    else:
+       print(&amp;quot;Use Threads&amp;quot;)
+else:
+    print(&amp;quot;Multi Processing&amp;quot;)
+
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;ul&gt;
+&lt;li&gt;CPU Bound =&amp;gt; Multi Processing&lt;/li&gt;
+&lt;li&gt;I/O Bound, Fast I/O, Limited Number of Connections =&amp;gt; Multi Threading&lt;/li&gt;
+&lt;li&gt;I/O Bound, Slow I/O, Many connections =&amp;gt; Asyncio&lt;/li&gt;
+&lt;/ul&gt;
+</description>
+    </item>
+    
+    <item>
+      <title>Creating an executable file using Cython</title>
+      <link>http://masnun.rocks/2016/10/01/creating-an-executable-file-using-cython/</link>
+      <pubDate>Sat, 01 Oct 2016 17:27:23 +0600</pubDate>
+      
+      <guid>http://masnun.rocks/2016/10/01/creating-an-executable-file-using-cython/</guid>
+      <description>
+
+&lt;hr /&gt;
+
+&lt;p&gt;&lt;strong&gt;Disclaimer&lt;/strong&gt;: I am quite new to Cython, if you find any part of this post is incorrect or
+there are better ways to do something, I would really appreciate your feedback. Please do feel
+free to leave your thoughts in the comments section :)&lt;/p&gt;
+
+&lt;hr /&gt;
+
+&lt;p&gt;I know Cython is supposed to be used for building extensions, but I was wondering if we can
+by any chance compile a Python file into executable binary using Cython? I searched on Google and found this
+&lt;a target=&#34;_blank&#34; href=&#34;http://stackoverflow.com/questions/5105482/compile-main-python-program-using-cython&#34;&gt;StackOverflow&lt;/a&gt;
+question. There is a detailed answer on this question which is very helpful. I tried to follow the
+instructions and after (finding and ) fixing some paths, I managed to do it. I am going to write down
+my experience here in case someone else finds it useful as well.&lt;/p&gt;
+
+&lt;h3 id=&#34;embedding-the-python-interpreter&#34;&gt;Embedding the Python Interpreter&lt;/h3&gt;
+
+&lt;p&gt;Cython compiles the Python or the Cython files into C and then compiles the C code to create the
+extensions. Interestingly, Cython has a CLI switch &lt;code&gt;--embed&lt;/code&gt; whic can generate a &lt;code&gt;main&lt;/code&gt; function.
+This main function embeds the Python interpreter for us. So we can just compile the C file and
+get our single binary executable.&lt;/p&gt;
+
+&lt;h3 id=&#34;getting-started&#34;&gt;Getting Started&lt;/h3&gt;
+
+&lt;p&gt;First we need to have a Python (&lt;code&gt;.py&lt;/code&gt;) or Cython (&lt;code&gt;.pyx&lt;/code&gt;)  file ready for compilation. Let&amp;rsquo;s start with
+a plain old &amp;ldquo;Hello World&amp;rdquo; example.&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class=&#34;language-python&#34;&gt;print(&amp;quot;Hello World!&amp;quot;)
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;Let&amp;rsquo;s convert this Python file to a C source file with embedded Python interpreter.&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class=&#34;language-bash&#34;&gt;cython --embed -o hello_world.c hello_world.py
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;It should generate a file named &lt;code&gt;hello_world.c&lt;/code&gt; in the current directory. We now compile it to an
+executable.&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class=&#34;language-bash&#34;&gt;gcc -v -Os -I /Users/masnun/.pyenv/versions/3.5.1/include/python3.5m -L /usr/local/Frameworks/Python.framework/Versions/3.5/lib  -o test test.c  -lpython3.5  -lpthread -lm -lutil -ldl
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;Please note you must have the Python source code and dynamic libraries in order to successfully compile
+it. I am on OSX and I use PyEnv. So I passed the appropriate paths and it compiled fine.&lt;/p&gt;
+
+&lt;p&gt;Now I have an executable file, which I can run:&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class=&#34;language-bash&#34;&gt;$ ./hello_world
+Hello World!
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;h3 id=&#34;dynamic-linking&#34;&gt;Dynamic Linking&lt;/h3&gt;
+
+&lt;p&gt;In this case, the executable we produce is dynamically linked to our specified Python version. So this
+may not be fully portable (the libraries will need to be available on target machines). But this should
+work fine if we compile against common versions (for example the default version of Python or a version
+easily obtainable via the package manager).&lt;/p&gt;
+
+&lt;h3 id=&#34;including-other-modules&#34;&gt;Including Other Modules&lt;/h3&gt;
+
+&lt;p&gt;Up untill now, I haven&amp;rsquo;t found any easy ways to include other 3rd party pure python modules (ie. &lt;code&gt;requests&lt;/code&gt;)
+directly compiled into the binary. However, if I want to split my codes into multiple files,  I can
+create other &lt;code&gt;.pyx&lt;/code&gt; files and use the &lt;code&gt;include&lt;/code&gt; statement with those.&lt;/p&gt;
+
+&lt;p&gt;For example, here&amp;rsquo;s &lt;code&gt;hello.pyx&lt;/code&gt;:&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class=&#34;language-cython&#34;&gt;cdef struct Person:
+    char *name
+    int age
+
+cdef say():
+    cdef Person masnun = Person(name=&amp;quot;masnun&amp;quot;, age=20)
+    print(&amp;quot;Hello {}, you are {} years old!&amp;quot;.format(masnun.name.decode(&#39;utf8&#39;), masnun.age))
+
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;And here&amp;rsquo;s my main file - &lt;code&gt;test.pyx&lt;/code&gt; -&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class=&#34;language-cython&#34;&gt;include &amp;quot;hello.pyx&amp;quot;
+
+say()
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;Now if I compile &lt;code&gt;test.pyx&lt;/code&gt; just like above example, it will also include the code in &lt;code&gt;hello.pyx&lt;/code&gt; and
+I can call the &lt;code&gt;say&lt;/code&gt; function as if it was in &lt;code&gt;test.pyx&lt;/code&gt; itself.&lt;/p&gt;
+
+&lt;p&gt;However, shared libraries like PyQt would have no issues - we can compile them as is. So
+basically we can take any PyQt code example and compile it with Cython - it should work fine!&lt;/p&gt;
+</description>
+    </item>
+    
+    <item>
+      <title>Can Cython make Python Great in Programming Contests?</title>
+      <link>http://masnun.rocks/2016/09/28/can-cython-make-python-great-in-programming-contests/</link>
+      <pubDate>Wed, 28 Sep 2016 08:00:30 +0600</pubDate>
+      
+      <guid>http://masnun.rocks/2016/09/28/can-cython-make-python-great-in-programming-contests/</guid>
+      <description>
+
+&lt;p&gt;Python is getting very popular as the first programming language in both home and aborad. I know many of the
+Bangladeshi universities have started using Python to introduce beginners to the wonderful world of programming.
+This also seems to be &lt;a target=&#34;_blank&#34; href=&#34;http://cacm.acm.org/blogs/blog-cacm/176450-python-is-now-the-most-popular-introductory-teaching-language-at-top-u-s-universities/fulltext&#34;&gt;the case&lt;/a&gt;
+in the US. I have talked to a few friends from other countries and they agree to the fact that
+Python is quickly becoming the language people learn first. A quick &lt;a target=&#34;_blank&#34; href=&#34;http://bfy.tw/7v1B&#34;&gt;google search&lt;/a&gt; could explain why Python is
+getting so popular among the learners.&lt;/p&gt;
+
+&lt;h3 id=&#34;python-in-programming-contests&#34;&gt;Python in Programming Contests&lt;/h3&gt;
+
+&lt;p&gt;Recently Python has been been included in ICPC, before that Python has usually had less visibility / presence in programming
+contests. And of course there are valid reasons behind that. The defacto implementation of Python - &amp;ldquo;CPython&amp;rdquo; is
+quite slow. It&amp;rsquo;s a dynmaic language and that costs in terms of execution speed. C / C++ / Java is way
+faster than Python and programming contests are all about speed / performance.
+Python would allow you to solve problems in less lines of code but you may often hit the time limit. Despite the
+limitation, people have continiously chosen Python to learn programming and solve problems on numerous programming
+related websites. This might have convnced the authority to include Python in ICPC.  But we do not yet know
+which flavor (read implementation) and version of Python will be available to the ICPC contestants. From
+&lt;a target=&#34;_blank&#34; href=&#34;https://www.quora.com/What-do-you-think-about-the-induction-of-Python-in-ACM-ICPC-2017&#34;&gt;different&lt;/a&gt;
+&lt;a target=&#34;_blank&#34; href=&#34;http://codeforces.com/blog/entry/44899&#34;&gt;sources&lt;/a&gt; I gather that Python will be supported
+but the time limit issue remains - it is not guranteed that a problem can be solved within the time limit using
+Python. That makes me wonder, can Cython help in such cases?&lt;/p&gt;
+
+&lt;h3 id=&#34;introduction-to-cython&#34;&gt;Introduction to Cython&lt;/h3&gt;
+
+&lt;p&gt;From the &lt;a target=&#34;_blank&#34; href=&#34;http://cython.org/&#34;&gt;official website&lt;/a&gt;:&lt;/p&gt;
+
+&lt;blockquote&gt;
+&lt;p&gt;Cython is an optimising static compiler for both the Python programming language and the extended Cython
+programming language (based on Pyrex). It makes writing C extensions for Python as easy as Python itself.&lt;/p&gt;
+&lt;/blockquote&gt;
+
+&lt;p&gt;With Cython, we can add type hints to our existing Python programs and compile them to make them run faster.
+But what is more awesome is the &lt;code&gt;Cython&lt;/code&gt; language - it is a superset of Python and allows us to write Python
+like code which performs like C.&lt;/p&gt;
+
+&lt;p&gt;Don&amp;rsquo;t trust my words, see for yourself in the &lt;a target=&#34;_blank&#34; href=&#34;http://docs.cython.org/en/latest/src/tutorial/cython_tutorial.html&#34;&gt;Tutorial&lt;/a&gt;
+and &lt;a target=&#34;_blank&#34; href=&#34;http://docs.cython.org/en/latest/src/userguide/language_basics.html#language-basics&#34;&gt; Cython Language Basics&lt;/a&gt;.&lt;/p&gt;
+
+&lt;h3 id=&#34;cython-is-fast&#34;&gt;Cython is Fast&lt;/h3&gt;
+
+&lt;p&gt;When I say fast, I really mean - &lt;strong&gt;very very&lt;/strong&gt; fast.&lt;/p&gt;
+
+&lt;p&gt;&lt;center&gt;
+&lt;img src=&#34;http://masnun.rocks/images/cython-vs-c.png&#34; alt=&#34;cython vs c&#34; /&gt;&lt;/p&gt;
+
+&lt;p&gt;Image Source: &lt;a target=&#34;_blank&#34; href=&#34;http://ibm.co/20XSZ4F&#34;&gt;&lt;a href=&#34;http://ibm.co/20XSZ4F&#34;&gt;http://ibm.co/20XSZ4F&lt;/a&gt;&lt;/a&gt;&lt;/p&gt;
+
+&lt;p&gt;&lt;/center&gt;&lt;/p&gt;
+
+&lt;p&gt;The above image is taken from an article from IBM Developer Works which shows how Cython compares to C in terms of speed.&lt;/p&gt;
+
+&lt;p&gt;You can also check out these links for random benchmarks from different people:&lt;/p&gt;
+
+&lt;ul&gt;
+&lt;li&gt;&lt;a target=&#34;_blank&#34; href=&#34;http://www.matthiaskauer.com/2014/02/a-speed-comparison-of-python-cython-and-c/&#34;&gt;Cython beating C++&lt;/a&gt;&lt;/li&gt;
+&lt;li&gt;&lt;a target=&#34;_blank&#34; href=&#34;http://prabhuramachandran.blogspot.com/2008/09/python-vs-cython-vs-d-pyd-vs-c-swig.html&#34;&gt;Cython being 30% faster than the C++&lt;/a&gt;&lt;/li&gt;
+&lt;li&gt;&lt;a target=&#34;_blank&#34; href=&#34;http://aroberge.blogspot.com/2010/01/python-cython-faster-than-c.html&#34;&gt;Another Benchmark&lt;/a&gt;&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;p&gt;And finally, do try yourself and benchmark Cython against C++ and see how it performs!&lt;/p&gt;
+
+&lt;p&gt;Bonus article &amp;ndash; &lt;a href=&#34;https://magic.io/blog/uvloop-blazing-fast-python-networking/&#34;&gt;Blazing fast Python networking&lt;/a&gt; :-)&lt;/p&gt;
+
+&lt;h3 id=&#34;cython-is-easy-to-setup&#34;&gt;Cython is easy to Setup&lt;/h3&gt;
+
+&lt;p&gt;OK, so is it easy to make Cython available in the contest environments? Yes, it is! The &lt;strong&gt;only&lt;/strong&gt; requirements of
+Cython is that you must have a &lt;strong&gt;C Compiler&lt;/strong&gt; installed on your system along with Python. Any computer used for
+contest programming is supposed to have a C compiler installed anyway.&lt;/p&gt;
+
+&lt;p&gt;We just need one command to install Cython:&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class=&#34;language-bash&#34;&gt;pip install Cython
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;&lt;strong&gt;PS:&lt;/strong&gt; Many Scientific distributions of Python (ie. Anaconda) already ships Cython.&lt;/p&gt;
+
+&lt;h3 id=&#34;cython-in-programming-contests&#34;&gt;Cython in Programming Contests&lt;/h3&gt;
+
+&lt;p&gt;Since we saw that Cython is super fast and easy to setup, programming contests can make Cython available
+along with CPython to allow the contestants make their programs faster and get along with Java / C++.
+It will make Python an attractive choice for serious problem solving.&lt;/p&gt;
+
+&lt;p&gt;I know the &lt;code&gt;Cython&lt;/code&gt; language is not exactly Python. It is a superset of the Python language. So beginners might
+not be familiar with the language and that&amp;rsquo;s alright. Beginners can start with Python and start solving the
+easier problems with Python. When they start competitive programming and start hitting the time limits, then
+Cython is one of the options they can choose to make their code run faster. Of course Cython needs some
+understanding of how C works - that&amp;rsquo;s fine too because Cython still feels more productive than writing plain
+old C or C++.&lt;/p&gt;
+
+&lt;h3 id=&#34;final-words&#34;&gt;Final words&lt;/h3&gt;
+
+&lt;p&gt;PyPy is already quite popular in the Python community. Dropbox and Microsoft are also working on their Python
+JITs. I believe that someday Python JITs would be as fast as Java / C++.  Today, Python is making programming
+fun for many beginners. I hope with Cython, we can worry less about the time limits and accept Python as a
+fitting tool in our competitive programming contests!&lt;/p&gt;
+</description>
+    </item>
+    
+    <item>
+      <title>Introduction to Django Channels</title>
+      <link>http://masnun.rocks/2016/09/25/introduction-to-django-channels/</link>
+      <pubDate>Sun, 25 Sep 2016 21:27:34 +0600</pubDate>
+      
+      <guid>http://masnun.rocks/2016/09/25/introduction-to-django-channels/</guid>
+      <description>
+
+&lt;p&gt;Django is a brilliant web framework. In fact it is my most favourite one for various reasons. An year and
+a half ago, I switched to Python and Django for all my web development. I am a big fan of the eco system
+and the many third party packages. Particularly I use Django REST Framework whenever I need to create
+APIs. Having said that, Django was more than good enough for basic HTTP requests. But the web has changed.
+We now have HTTP/2 and web sockets. Django could not support them well in the past. For the web socket part,
+I usually had to rely on Tornado or NodeJS (with the excellent Socket.IO library). They are good technologies
+but most of my web apps being in Django, I really wished there were something that could work with Django itself.
+And then we had &lt;strong&gt;Channels&lt;/strong&gt;. The project is meant to allow Django to support HTTP/2, websockets or other
+protocols with ease.&lt;/p&gt;
+
+&lt;h3 id=&#34;concepts&#34;&gt;Concepts&lt;/h3&gt;
+
+&lt;p&gt;The underlying concept is really simple - there are &lt;code&gt;channels&lt;/code&gt; and there are &lt;code&gt;messages&lt;/code&gt;,
+there are &lt;code&gt;producers&lt;/code&gt; and there are &lt;code&gt;consumers&lt;/code&gt; - the whole system is based on passing messages
+on to channels and consuming/responding to those messages.&lt;/p&gt;
+
+&lt;p&gt;Let&amp;rsquo;s look at the core components of Django Channels first:&lt;/p&gt;
+
+&lt;ul&gt;
+&lt;li&gt;&lt;code&gt;channel&lt;/code&gt; - A channel is a FIFO queue like data structure. We can have many channels depending on our need.&lt;br /&gt;&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;message&lt;/code&gt; - A message contains meaningful data for the consumers. Messages are passed on to the channels.&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;consumer&lt;/code&gt; - A consumer is usually a function that consumes a message and take actions.&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;interface server&lt;/code&gt; - The interface server knows how to handle different protocols. It works as a translator
+or a bridge between Django and the outside world.&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;h3 id=&#34;how-does-it-work&#34;&gt;How does it work?&lt;/h3&gt;
+
+&lt;p&gt;A http request first comes to the &lt;code&gt;Interface Server&lt;/code&gt; which knows how to deal with a specific type of
+request. For example, for websockets and http, &lt;strong&gt;Daphne&lt;/strong&gt; is a popular interface server. When a
+new http/websocket request comes to the interface server (daphne in our case), it accepts the  request
+and transforms it into a &lt;code&gt;message&lt;/code&gt;.  Then it passes the &lt;code&gt;message&lt;/code&gt; to the appropriate &lt;code&gt;channel&lt;/code&gt;. There are
+predefined channels for specific types. For example, all http requests are passed to &lt;code&gt;http.request&lt;/code&gt; channel.
+For incoming websocket messages, there is &lt;code&gt;websocket.receive&lt;/code&gt;. So these channels receive the messages when
+the corresponding type of requests come in to the interface server.&lt;/p&gt;
+
+&lt;p&gt;Now that we have &lt;code&gt;channels&lt;/code&gt; getting filled with &lt;code&gt;messages&lt;/code&gt;, we need a way to process these messages and
+take actions (if necessary), right? Yes! For that we write some consumer functions and register them to
+the channels we want. When messages come to these channels, the consumers are called with the message.
+They can read the message and act on them.&lt;/p&gt;
+
+&lt;p&gt;So far, we have seen how we can &lt;strong&gt;read&lt;/strong&gt; an incoming request. But like all web applications, we should
+&lt;strong&gt;write&lt;/strong&gt; something back too, no? How do we do that? As it happens, the interface server is quite clever.
+While transforming the incoming request into a message, it creates a &lt;code&gt;reply&lt;/code&gt; channel for that particular
+client request and registers itself to that channel. Then it passes the reply channel along with the message.
+When our consumer function reads the incoming message, it can pass a response to the &lt;code&gt;reply channel&lt;/code&gt; attached
+with the message. Our interface server is listenning to that reply channel, remember? So when a response is sent
+back to the reply channel, the interface server grabs the message, transforms it into a http response and sends
+back to the client. Simple, no?&lt;/p&gt;
+
+&lt;h3 id=&#34;writing-a-websocket-echo-server&#34;&gt;Writing a Websocket Echo Server&lt;/h3&gt;
+
+&lt;p&gt;Enough with the theories, let&amp;rsquo;s get our hands dirty and build a simple echo server. The concept is simple.
+The server accepts websocket connections, the client writes something to us, we just echo it back. Plain and
+simple example.&lt;/p&gt;
+
+&lt;h5 id=&#34;install-django-channels&#34;&gt;Install Django &amp;amp; Channels&lt;/h5&gt;
+
+&lt;pre&gt;&lt;code class=&#34;language-bash&#34;&gt;pip install channels
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;That should do the trick and install Django + Channels. Channels has Django as a depdency, so when you install
+channels, Django comes with it.&lt;/p&gt;
+
+&lt;h5 id=&#34;create-an-app&#34;&gt;Create An App&lt;/h5&gt;
+
+&lt;p&gt;Next we create a new django project and app -&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class=&#34;language-bash&#34;&gt;django-admin.py startproject djchan
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;pre&gt;&lt;code class=&#34;language-bash&#34;&gt;cd djchan
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;pre&gt;&lt;code class=&#34;language-bash&#34;&gt;python manage.py startapp realtime
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;h5 id=&#34;configure-installed-apps&#34;&gt;Configure &lt;code&gt;INSTALLED_APPS&lt;/code&gt;&lt;/h5&gt;
+
+&lt;p&gt;We have our Django app ready. We need to add &lt;code&gt;channels&lt;/code&gt; and our django app (&lt;code&gt;realtime&lt;/code&gt;) to the &lt;code&gt;INSTALLED_APPS&lt;/code&gt; list under &lt;code&gt;settings.py&lt;/code&gt;.
+Let&amp;rsquo;s do that:&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class=&#34;language-python&#34;&gt;INSTALLED_APPS = [
+    &#39;django.contrib.admin&#39;,
+    &#39;django.contrib.auth&#39;,
+    &#39;django.contrib.contenttypes&#39;,
+    &#39;django.contrib.sessions&#39;,
+    &#39;django.contrib.messages&#39;,
+    &#39;django.contrib.staticfiles&#39;,
+
+    &amp;quot;channels&amp;quot;,
+    &amp;quot;realtime&amp;quot;
+]
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;h5 id=&#34;write-our-consumer&#34;&gt;Write our Consumer&lt;/h5&gt;
+
+&lt;p&gt;After that, we need to start writing a consumer function that will process the incoming websocket messages
+and send back the response:&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class=&#34;language-python&#34;&gt;# consumers.py 
+def websocket_receive(message):
+    text = message.content.get(&#39;text&#39;)
+    if text:
+        message.reply_channel.send({&amp;quot;text&amp;quot;: &amp;quot;You said: {}&amp;quot;.format(text)})
+
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;The code is simple enough. We receieve a message, get it&amp;rsquo;s text content (we&amp;rsquo;re expecting that the websocket
+connection will send only text data for this exmaple) and then push it back to the &lt;code&gt;reply_channel&lt;/code&gt; - just like
+we planned.&lt;/p&gt;
+
+&lt;h5 id=&#34;channels-routing&#34;&gt;Channels Routing&lt;/h5&gt;
+
+&lt;p&gt;We have our consume function ready, now we need to tell Django how to route messages to our consumer. Just like
+URL routing, we need to define our channel routings.&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class=&#34;language-python&#34;&gt;# routing.py
+from channels.routing import route
+from .consumers import websocket_receive
+ 
+channel_routing = [
+    route(&amp;quot;websocket.receive&amp;quot;, websocket_receive, path=r&amp;quot;^/chat/&amp;quot;),
+]
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;The code should be self explanatory. We have a list of &lt;code&gt;route&lt;/code&gt; objects. Here we select the channel name
+(&lt;code&gt;websocket.receive&lt;/code&gt; =&amp;gt; for receieving websocket messages), pass the consumer function and then configure
+the optional &lt;code&gt;path&lt;/code&gt;. The path is an interesting bit. If we didn&amp;rsquo;t pass a value for it, the consumer will
+get all the messages in the &lt;code&gt;websocket.receive&lt;/code&gt; channel on any URL. So if someone created a websocket connection
+to &lt;code&gt;/&lt;/code&gt; or &lt;code&gt;/private&lt;/code&gt; or &lt;code&gt;/user/1234&lt;/code&gt; - regardless of the url path, we would get all incoming messages. But
+that&amp;rsquo;s not our intention, right? So we restrict the &lt;code&gt;path&lt;/code&gt; to &lt;code&gt;/chat&lt;/code&gt; so only connections made to that url
+are handled by the consumer. Please note the beginning &lt;code&gt;/&lt;/code&gt;, unlike url routing, in channels, we have to use it.&lt;/p&gt;
+
+&lt;h5 id=&#34;configuring-the-channel-layers&#34;&gt;Configuring The Channel Layers&lt;/h5&gt;
+
+&lt;p&gt;We have defined a consumer and added it to a routing table. We&amp;rsquo;re more or less ready. There&amp;rsquo;s just a final
+bit of configuration we need to do. We need to tell channels two things - which backend we want to use and
+where it can find our channel routing.&lt;/p&gt;
+
+&lt;p&gt;Let&amp;rsquo;s briefly talk about the backend. The messages and the channels - Django needs some sort of data store or
+message queue to back this system. By default Django can use in memory backend which keeps these things in memory
+but if you consider a distributed app, for scaling large, you need something else. Redis is a popular and proven
+piece of technology for these kinds of scenarios. In our case we would use the Redis backend.&lt;/p&gt;
+
+&lt;p&gt;So let&amp;rsquo;s install that:&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class=&#34;language-sh&#34;&gt;pip install asgi_redis
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;And now we put this in our &lt;code&gt;settings.py&lt;/code&gt;:&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class=&#34;language-python&#34;&gt;CHANNEL_LAYERS = {
+    &amp;quot;default&amp;quot;: {
+        &amp;quot;BACKEND&amp;quot;: &amp;quot;asgi_redis.RedisChannelLayer&amp;quot;,
+        &amp;quot;CONFIG&amp;quot;: {
+            &amp;quot;hosts&amp;quot;: [(&amp;quot;localhost&amp;quot;, 6379)],
+        },
+        &amp;quot;ROUTING&amp;quot;: &amp;quot;realtime.routing.channel_routing&amp;quot;,
+    },
+}
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;h5 id=&#34;running-the-servers&#34;&gt;Running The Servers&lt;/h5&gt;
+
+&lt;p&gt;Make sure that Redis is running (usually &lt;code&gt;redis-server&lt;/code&gt; should run it). Now run the django app:&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class=&#34;language-sh&#34;&gt;python manage.py runserver
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;In local environment, when you do &lt;code&gt;runserver&lt;/code&gt; - Django launches both the interface server and necessary
+ background workers (to run the consumer functions in the background). But in production,
+ we should run the workers seperately. We will get to that soon.&lt;/p&gt;
+
+&lt;h5 id=&#34;trying-it-out&#34;&gt;Trying it Out!&lt;/h5&gt;
+
+&lt;p&gt;Once our dev server starts up, let’s open up the web app. If you haven’t added any django views,
+no worries, you should still see the “It Worked!” welcome page of Django and that should be
+fine for now. We need to test our websocket and we are smart enough to do that from the dev console.
+Open up your Chrome Devtools (or Firefox | Safari | any other browser’s dev tools) and navigate to the
+JS console. Paste the following JS code:&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class=&#34;language-javascript&#34;&gt;
+socket = new WebSocket(&amp;quot;ws://&amp;quot; + window.location.host + &amp;quot;/chat/&amp;quot;);
+socket.onmessage = function(e) {
+    alert(e.data);
+}
+socket.onopen = function() {
+    socket.send(&amp;quot;hello world&amp;quot;);
+}
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;If everything worked, you should get an alert with the message we sent. Since we defined a path,
+the websocket connection works only on /chat/. Try modifying the JS code and send a message to
+some other url to see how they don’t work. Also remove the path from our route and see how you can catch
+all websocket messages from all the websocket connections regardless of which url they were connected to.
+Cool, no?&lt;/p&gt;
+
+&lt;h5 id=&#34;our-custom-channels&#34;&gt;Our Custom Channels&lt;/h5&gt;
+
+&lt;p&gt;We have seen that certain protocols have predefined channels for various purposes. But we are not limited to those.
+We can create our own channels. We don&amp;rsquo;t need to do anything fancy to initialize a new channel. We just need to
+mention a name and send some messages to it. Django will create the channel for us.&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class=&#34;language-python&#34;&gt;Channel(&amp;quot;thumbnailer&amp;quot;).send({
+        &amp;quot;image_id&amp;quot;: image.id
+    })
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;Of course we need corresponding workers to be listenning to those channels. Otherwise nothing will happen.
+Please note that besides working with new protocols, Channels also allow us to create some sort of message
+based task queues. We create channels for certain tasks and our workers listen to those channels. Then we
+pass the data to those channels and the workers process them. So for simpler tasks, this could be a nice
+solution.&lt;/p&gt;
+
+&lt;h3 id=&#34;scaling-production-systems&#34;&gt;Scaling Production Systems&lt;/h3&gt;
+
+&lt;h5 id=&#34;running-workers-seperately&#34;&gt;Running Workers Seperately&lt;/h5&gt;
+
+&lt;p&gt;On a production environment, we would want to run the workers seperately (since we would not run &lt;code&gt;runserver&lt;/code&gt; on
+production anyway). To run the background workers, we have to run this command:&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class=&#34;language-sh&#34;&gt;python manage.py runworker
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;h5 id=&#34;asgi-daphne&#34;&gt;ASGI &amp;amp; Daphne&lt;/h5&gt;
+
+&lt;p&gt;In our local environment, the &lt;code&gt;runserver&lt;/code&gt; command took care of launching the Interface server and background
+workers. But now we have to run the interface server ourselves. We mentioned &lt;strong&gt;Daphne&lt;/strong&gt; already. It works
+with the &lt;code&gt;ASGI&lt;/code&gt; standard (which is commonly used for HTTP/2 and websockets). Just like &lt;code&gt;wsgi.py&lt;/code&gt;, we now need to
+create a &lt;code&gt;asgi.py&lt;/code&gt; module and configure it.&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class=&#34;language-python&#34;&gt;import os
+from channels.asgi import get_channel_layer
+
+os.environ.setdefault(&amp;quot;DJANGO_SETTINGS_MODULE&amp;quot;, &amp;quot;djchan.settings&amp;quot;)
+
+channel_layer = get_channel_layer()
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;Now we can run the server:&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class=&#34;language-bash&#34;&gt;daphne djchan.asgi:channel_layer
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;If everything goes right, the interface server should start running!&lt;/p&gt;
+
+&lt;h5 id=&#34;asgi-or-wsgi&#34;&gt;ASGI or WSGI&lt;/h5&gt;
+
+&lt;p&gt;ASGI is still new and WSGI is a battle tested http server. So you might still want to keep using wsgi for your
+http only parts and asgi for the parts where you need channels specific features.&lt;/p&gt;
+
+&lt;p&gt;The popular recommendation is that you should use &lt;code&gt;nginx&lt;/code&gt; or any other reverse proxies in front and route the
+urls to asgi or uwsgi depending on the url or &lt;code&gt;Upgrade: WebSocket&lt;/code&gt; header.&lt;/p&gt;
+
+&lt;h5 id=&#34;retries-and-celery&#34;&gt;Retries and Celery&lt;/h5&gt;
+
+&lt;p&gt;The Channels system does not gurantee delivery. If there are tasks which needs the certainity, it is highly
+recommended to use a system like Celery for these parts. Or we can also roll our own checks and retry logic if
+we feel like that.&lt;/p&gt;
+</description>
+    </item>
+    
+  </channel>
+</rss>
