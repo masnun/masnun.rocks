@@ -1,0 +1,343 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <meta charset="utf-8">
+        <meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1">
+        <title>Getting Help Interactively in Python &middot; Abu Ashraf Masnun</title>
+        <meta name="description" content="Whovian, *nixer, business graduate, passionate software craftsman">
+        <meta name="HandheldFriendly" content="True">
+        <meta name="MobileOptimized" content="320">
+        <meta name="generator" content="Hugo 0.17" />
+        <meta name="robots" content="index,follow">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <link rel="stylesheet" href="http://masnun.rocks/css/normalize.css">
+        <link rel="stylesheet" href="http://masnun.rocks/css/highlight.css">
+        <link rel="stylesheet" href="http://masnun.rocks/css/style.css">
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Open+Sans:300italic,400italic,600italic,700italic,400,600,700,300&subset=latin,cyrillic-ext,latin-ext,cyrillic">
+        <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/font-awesome/4.6.3/css/font-awesome.min.css">
+    </head>
+    <body>
+        
+<script>
+(function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
+(i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
+m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
+})(window,document,'script','//www.google-analytics.com/analytics.js','ga');
+
+ga('create', 'UA-84715154-1', 'auto');
+ga('send', 'pageview');
+</script>
+
+
+        <div id="wrapper">
+            <header class="site-header">
+                <div class="container">
+                    <div class="site-title-wrapper">
+                        
+                            <h1 class="site-title">
+                                <a title="masnun.rocks()" href="http://masnun.rocks/">masnun.rocks()</a>
+                            </h1>
+                        
+                        <a class="button-square" href="http://masnun.rocks/index.xml"><i class="fa fa-rss"></i></a>
+                        
+                            <a class="button-square button-social hint--top" data-hint="Twitter" title="Twitter" href="https://twitter.com/masnun">
+                                <i class="fa fa-twitter"></i>
+                            </a>
+                        
+                        
+                        
+                            <a class="button-square button-social hint--top" data-hint="Github" title="Github" href="https://github.com/masnun">
+                                <i class="fa fa-github-alt"></i>
+                            </a>
+                        
+                        
+                            <a class="button-square button-social hint--top" data-hint="Stack Overflow" title="Stack Overflow" href="http://stackoverflow.com/users/301107/masnun">
+                                <i class="fa fa-stack-overflow"></i>
+                            </a>
+                        
+                        
+                        
+                    </div>
+
+                    <ul class="site-nav">
+                        
+    <li class="site-nav-item">
+        <a title="Home" href="/">Home</a>
+    </li>
+
+    <li class="site-nav-item">
+        <a title="Contact" href="/contact/">Contact</a>
+    </li>
+
+    <li class="site-nav-item">
+        <a title="About" href="/about/">About</a>
+    </li>
+
+                    </ul>
+                </div>
+            </header>
+
+            <div id="container">
+
+
+<div class="container">
+    <article class="post-container">
+        <header class="post-header">
+    <h1 class="post-title">Getting Help Interactively in Python</h1>
+    
+</header>
+
+        <div class="post-content clearfix">
+    
+
+    
+
+<p>Working with a module that you&rsquo;re not familiar with? No internet? Somehow the docs are not accessible?
+Or simply feeling adventourous? Python has you covered. There are a few ways to get
+help Interactively. In this post, we will try a few of them.</p>
+
+<h3 id="the-dir-built-in">The <code>dir</code> built-in</h3>
+
+<p>The <code>dir</code> built in is a very helpful one. If you call it without any arguments, that is just
+<code>dir()</code>, it will return the names available in the current scope. When passed with an argument,
+it would display the available attributes of the passed object (inherited or it&rsquo;s own).</p>
+
+<pre><code class="language-python">&gt;&gt;&gt; import os
+&gt;&gt;&gt; dir(os)
+['CLD_CONTINUED', 'CLD_DUMPED', 'CLD_EXITED', 'CLD_TRAPPED', 'EX_CANTCREAT', 'EX_CONFIG', 'EX_DATAERR', 'EX_IOERR', 'EX_NOHOST', 'EX_NOINPUT', 'EX_NOPERM', 'EX_NOUSER', 'EX_OK', 'EX_OSERR', 'EX_OSFILE', 'EX_PROTOCOL', 'EX_SOFTWARE', 'EX_TEMPFAIL', 'EX_UNAVAILABLE', 'EX_USAGE', 'F_LOCK', 'F_OK', 'F_TEST', 'F_TLOCK', 'F_ULOCK', 'MutableMapping', 'NGROUPS_MAX', 'O_ACCMODE', 'O_APPEND', 'O_ASYNC', 'O_CLOEXEC', 'O_CREAT', 'O_DIRECTORY', 'O_DSYNC', 'O_EXCL', 'O_EXLOCK', 'O_NDELAY', 'O_NOCTTY', 'O_NOFOLLOW', 'O_NONBLOCK', 'O_RDONLY', 'O_RDWR', 'O_SHLOCK', 'O_SYNC', 'O_TRUNC', 'O_WRONLY', 'PRIO_PGRP', 'PRIO_PROCESS', 'PRIO_USER', 'P_ALL', 'P_NOWAIT', 'P_NOWAITO', 'P_PGID', 'P_PID', 'P_WAIT', 'RTLD_GLOBAL', 'RTLD_LAZY', 'RTLD_LOCAL', 'RTLD_NODELETE', 'RTLD_NOLOAD', 'RTLD_NOW', 'R_OK', 'SCHED_FIFO', 'SCHED_OTHER', 'SCHED_RR', 'SEEK_CUR', 'SEEK_END', 'SEEK_SET', 'ST_NOSUID', 'ST_RDONLY', 'TMP_MAX', 'WCONTINUED', 'WCOREDUMP', 'WEXITED', 'WEXITSTATUS', 'WIFCONTINUED', 'WIFEXITED', 'WIFSIGNALED', 'WIFSTOPPED', 'WNOHANG', 'WNOWAIT', 'WSTOPPED', 'WSTOPSIG', 'WTERMSIG', 'WUNTRACED', 'W_OK', 'X_OK', '_Environ', '__all__', '__builtins__', '__cached__', '__doc__', '__file__', '__loader__', '__name__', '__package__', '__spec__', '_execvpe', '_exists', '_exit', '_fwalk', '_get_exports_list', '_putenv', '_spawnvef', '_unsetenv', '_wrap_close', 'abort', 'access', 'altsep', 'chdir', 'chflags', 'chmod', 'chown', 'chroot', 'close', 'closerange', 'confstr', 'confstr_names', 'cpu_count', 'ctermid', 'curdir', 'defpath', 'device_encoding', 'devnull', 'dup', 'dup2', 'environ', 'environb', 'errno', 'error', 'execl', 'execle', 'execlp', 'execlpe', 'execv', 'execve', 'execvp', 'execvpe', 'extsep', 'fchdir', 'fchmod', 'fchown', 'fdopen', 'fork', 'forkpty', 'fpathconf', 'fsdecode', 'fsencode', 'fstat', 'fstatvfs', 'fsync', 'ftruncate', 'fwalk', 'get_blocking', 'get_exec_path', 'get_inheritable', 'get_terminal_size', 'getcwd', 'getcwdb', 'getegid', 'getenv', 'getenvb', 'geteuid', 'getgid', 'getgrouplist', 'getgroups', 'getloadavg', 'getlogin', 'getpgid', 'getpgrp', 'getpid', 'getppid', 'getpriority', 'getsid', 'getuid', 'initgroups', 'isatty', 'kill', 'killpg', 'lchflags', 'lchmod', 'lchown', 'linesep', 'link', 'listdir', 'lockf', 'lseek', 'lstat', 'major', 'makedev', 'makedirs', 'minor', 'mkdir', 'mkfifo', 'mknod', 'name', 'nice', 'open', 'openpty', 'pardir', 'path', 'pathconf', 'pathconf_names', 'pathsep', 'pipe', 'popen', 'pread', 'putenv', 'pwrite', 'read', 'readlink', 'readv', 'remove', 'removedirs', 'rename', 'renames', 'replace', 'rmdir', 'scandir', 'sched_get_priority_max', 'sched_get_priority_min', 'sched_yield', 'sendfile', 'sep', 'set_blocking', 'set_inheritable', 'setegid', 'seteuid', 'setgid', 'setgroups', 'setpgid', 'setpgrp', 'setpriority', 'setregid', 'setreuid', 'setsid', 'setuid', 'spawnl', 'spawnle', 'spawnlp', 'spawnlpe', 'spawnv', 'spawnve', 'spawnvp', 'spawnvpe', 'st', 'stat', 'stat_float_times', 'stat_result', 'statvfs', 'statvfs_result', 'strerror', 'supports_bytes_environ', 'supports_dir_fd', 'supports_effective_ids', 'supports_fd', 'supports_follow_symlinks', 'symlink', 'sync', 'sys', 'sysconf', 'sysconf_names', 'system', 'tcgetpgrp', 'tcsetpgrp', 'terminal_size', 'times', 'times_result', 'truncate', 'ttyname', 'umask', 'uname', 'uname_result', 'unlink', 'unsetenv', 'urandom', 'utime', 'wait', 'wait3', 'wait4', 'waitpid', 'walk', 'write', 'writev']
+&gt;&gt;&gt;
+</code></pre>
+
+<p>Coupled with <code>getattr</code>, you can actually write your own custom utilities to better inspect objects.</p>
+
+<h3 id="the-help-built-in">The <code>help</code> built-in</h3>
+
+<p>I guess I don&rsquo;t have to tell you how <code>help</code>-ful this one can be?</p>
+
+<blockquote>
+<p>Did you know the <code>help</code> built in is based on <code>pydoc.help</code>?</p>
+</blockquote>
+
+<p>If you just call <code>help</code>  without any arguments, it will launch an interactive help prompt
+where you can just type in names and it will display help for that. Here&rsquo;s an example:</p>
+
+<pre><code class="language-python">&gt;&gt;&gt; help()
+
+Welcome to Python 3.5's help utility!
+
+If this is your first time using Python, you should definitely check out
+the tutorial on the Internet at http://docs.python.org/3.5/tutorial/.
+
+Enter the name of any module, keyword, or topic to get help on writing
+Python programs and using Python modules.  To quit this help utility and
+return to the interpreter, just type &quot;quit&quot;.
+
+To get a list of available modules, keywords, symbols, or topics, type
+&quot;modules&quot;, &quot;keywords&quot;, &quot;symbols&quot;, or &quot;topics&quot;.  Each module also comes
+with a one-line summary of what it does; to list the modules whose name
+or summary contain a given string such as &quot;spam&quot;, type &quot;modules spam&quot;.
+
+help&gt; list
+
+help&gt;
+</code></pre>
+
+<p>When you type in <code>list</code> and hit enter, it will show you the docs for the <code>list</code> built in. To quit, press
+<code>q</code>. As described in the text above, typing in &ldquo;modules&rdquo;, &ldquo;keywords&rdquo; etc will list what is available.</p>
+
+<p>Interestingly the help functionality is built on top of <code>pydoc</code> so it will be able to help you with most
+of the installed modules (even the third party ones) as long as the modules have doctstrings available.
+Brilliant, no?</p>
+
+<p>Now if you call the <code>help</code> callable with an argument, it will display help for that item. The above example
+for viewing the docs for <code>list</code> can be done this way too:</p>
+
+<pre><code class="language-python">&gt;&gt;&gt; help(list)
+</code></pre>
+
+<p>Neat, huh?</p>
+
+<h3 id="using-the-pydoc-module">Using the <code>pydoc</code> Module</h3>
+
+<p>In the previous section, we mentioned <code>pydoc</code>. From the name, you can probably guess what it does. Just to be
+certain, let&rsquo;s try this:</p>
+
+<pre><code class="language-python">&gt;&gt;&gt; import pydoc
+&gt;&gt;&gt; help(pydoc)
+</code></pre>
+
+<p>As you can read in there, the <code>pydoc</code> module generates documentation in html or text format for interactive
+usages (like in the previous section). It can read Python source files, parse the docstrings and generate
+helpful information for us. Pydoc module comes with your Python installation. So it is always available to you.</p>
+
+<p>There are some interesting use cases of this module. You can run it from the command line. Just use
+<code>pydoc &lt;name&gt;</code> where the <code>&lt;name&gt;</code> is the name of a function, module, class etc. It will display
+the same interactive, generated docs we get from <code>help(&lt;name&gt;)</code>.</p>
+
+<p>And then <code>pydoc -k &lt;keyword&gt;</code> would search the keyword in the available modules&rsquo; synopsis.</p>
+
+<p>If you would like to browse the docs on a web browser, you can run <code>pydoc -b</code> and it will run a
+server and open your browser, pointing to the address of the server. If you would like to set the port
+yourself, use <code>pydoc -p &lt;port&gt;</code> and then in the prompt, type &ldquo;b&rdquo; to open the browser. You can browse
+the docs and search as needed.</p>
+
+<h3 id="the-inspect-module">The <code>inspect</code> Module</h3>
+
+<p>The <code>inspect</code> module has some interesting use cases too. It can help us know more about different objects
+in runtime.</p>
+
+<p>The following functions check for object types:</p>
+
+<ul>
+<li><code>ismodule()</code></li>
+<li><code>isclass()</code></li>
+<li><code>ismethod()</code></li>
+<li><code>isfunction()</code></li>
+<li><code>isgeneratorfunction()</code></li>
+<li><code>isgenerator()</code></li>
+<li><code>istraceback()</code></li>
+<li><code>isframe()</code></li>
+<li><code>iscode()</code></li>
+<li><code>isbuiltin()</code></li>
+<li><code>isroutine()</code></li>
+</ul>
+
+<p>We can use the <code>getmembers()</code> function to get all the members of an object, class or module. We can filter
+the members by passing one of the above functions as the second argument.</p>
+
+<pre><code class="language-python">&gt;&gt;&gt; len(inspect.getmembers(os))
+284
+&gt;&gt;&gt; len(inspect.getmembers(os, inspect.isclass))
+9
+&gt;&gt;&gt;
+</code></pre>
+
+<p>The <code>getdoc</code> function can be used to retrieve available documentation from an object.</p>
+
+<pre><code class="language-python">&gt;&gt;&gt; inspect.getdoc(list)
+&quot;list() -&gt; new empty list\nlist(iterable) -&gt; new list initialized from iterable's items&quot;
+</code></pre>
+
+<p>The inspect module has some other cool functions too. Do check them out. And of course, you know how! ;-)</p>
+
+<pre><code class="language-python">&gt;&gt;&gt; import inspect
+&gt;&gt;&gt; help(inspect)
+</code></pre>
+
+</div>
+
+        <hr/>
+        <div>
+            
+            
+            <link href="//cdn-images.mailchimp.com/embedcode/horizontal-slim-10_7.css" rel="stylesheet" type="text/css">
+            <style type="text/css">
+                #mc_embed_signup{background:#fff; clear:left; font:14px Helvetica,Arial,sans-serif; width:100%;}
+                 
+            </style>
+            <div id="mc_embed_signup">
+            <form action="//rocks.us6.list-manage.com/subscribe/post?u=9629b854ab5af8778b9853891&amp;id=ad5968cb3a" method="post" id="mc-embedded-subscribe-form" name="mc-embedded-subscribe-form" class="validate" target="_blank" novalidate>
+                <div id="mc_embed_signup_scroll">
+                <label for="mce-EMAIL">Subscribe via Email</label>
+                <input type="email" value="" name="EMAIL" class="email" id="mce-EMAIL" placeholder="email address" required>
+                
+                <div style="position: absolute; left: -5000px;" aria-hidden="true"><input type="text" name="b_9629b854ab5af8778b9853891_ad5968cb3a" tabindex="-1" value=""></div>
+                <div class="clear"><input type="submit" value="Subscribe" name="subscribe" id="mc-embedded-subscribe" class="button"></div>
+                </div>
+            </form>
+            </div>
+
+            
+        
+        </div>
+        <hr/>
+
+        <footer class="post-footer clearfix">
+    
+        <p class="post-tags">
+            <span>Tagged:</span>
+            
+                 <a href="/tags/python/">Python</a>
+            
+        </p>
+    
+
+    <div class="share">
+        <a class="icon-twitter" href="http://twitter.com/share?text=Getting%20Help%20Interactively%20in%20Python&url=http%3a%2f%2fmasnun.rocks%2f2016%2f11%2f01%2fgetting-help-interactively-in-python%2f"
+            onclick="window.open(this.href, 'twitter-share', 'width=550,height=235');return false;">
+            <i class="fa fa-twitter"></i>
+            <span class="hidden">Twitter</span>
+        </a>
+
+        <a class="icon-facebook" href="https://www.facebook.com/sharer/sharer.php?u=http%3a%2f%2fmasnun.rocks%2f2016%2f11%2f01%2fgetting-help-interactively-in-python%2f"
+            onclick="window.open(this.href, 'facebook-share','width=580,height=296');return false;">
+            <i class="fa fa-facebook"></i>
+            <span class="hidden">Facebook</span>
+        </a>
+
+        <a class="icon-google-plus" href="https://plus.google.com/share?url=http%3a%2f%2fmasnun.rocks%2f2016%2f11%2f01%2fgetting-help-interactively-in-python%2f"
+           onclick="window.open(this.href, 'google-plus-share', 'width=490,height=530');return false;">
+           <i class="fa fa-google-plus"></i>
+            <span class="hidden">Google+</span>
+        </a>
+    </div>
+</footer>
+
+        <br/>
+
+        
+    <div class="comments">
+        <div id="disqus_thread"></div>
+<script type="text/javascript">
+    var disqus_shortname = 'masnun-rocks';
+    var disqus_identifier = 'http:\/\/masnun.rocks\/2016\/11\/01\/getting-help-interactively-in-python\/';
+    var disqus_title = 'Getting Help Interactively in Python';
+    var disqus_url = 'http:\/\/masnun.rocks\/2016\/11\/01\/getting-help-interactively-in-python\/';
+
+    (function() {
+        var dsq = document.createElement('script'); dsq.type = 'text/javascript'; dsq.async = true;
+        dsq.src = '//' + disqus_shortname + '.disqus.com/embed.js';
+        (document.getElementsByTagName('head')[0] || document.getElementsByTagName('body')[0]).appendChild(dsq);
+    })();
+</script>
+<noscript>Please enable JavaScript to view the <a href="http://disqus.com/?ref_noscript">comments powered by Disqus.</a></noscript>
+<a href="http://disqus.com" class="dsq-brlink">comments powered by <span class="logo-disqus">Disqus</span></a>
+    </div>
+
+
+    </article>
+
+    
+</div>
+
+            </div>
+        </div>
+
+        <footer class="footer">
+            <div class="container">
+                <div class="site-title-wrapper">
+                    <h1 class="site-title">
+                        <a title="masnun.rocks()" href="http://masnun.rocks/">masnun.rocks()</a>
+                    </h1>
+                    <a class="button-square button-jump-top js-jump-top" href="#">
+                        <i class="fa fa-angle-up"></i>
+                    </a>
+                </div>
+
+                <p class="footer-copyright">
+                    <span>&copy; 2016 / Powered by <a href="http://gohugo.io/">Hugo</a></span>
+                </p>
+                <p class="footer-copyright">
+                    <span><a href="https://github.com/roryg/ghostwriter">Ghostwriter theme</a> By <a href="http://jollygoodthemes.com">JollyGoodThemes</a></span>
+                    <span>/ <a href="https://github.com/jbub/ghostwriter">Ported</a> to Hugo By <a href="https://github.com/jbub">jbub</a></span>
+                </p>
+            </div>
+        </footer>
+
+        <script src="http://masnun.rocks/js/jquery-1.11.3.min.js"></script>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/8.5/highlight.min.js"></script>
+        <script src="http://masnun.rocks/js/jquery.fitvids.js"></script>
+        <script src="http://masnun.rocks/js/scripts.js"></script>
+    </body>
+</html>
+

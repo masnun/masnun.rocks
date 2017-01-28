@@ -1,0 +1,216 @@
+<?xml version="1.0" encoding="utf-8" standalone="yes" ?>
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">
+  <channel>
+    <title>masnun.rocks()</title>
+    <link>http://masnun.rocks/tags/cython/index.xml</link>
+    <description>Recent content on masnun.rocks()</description>
+    <generator>Hugo -- gohugo.io</generator>
+    <language>en-us</language>
+    <atom:link href="http://masnun.rocks/tags/cython/index.xml" rel="self" type="application/rss+xml" />
+    
+    <item>
+      <title>Creating an executable file using Cython</title>
+      <link>http://masnun.rocks/2016/10/01/creating-an-executable-file-using-cython/</link>
+      <pubDate>Sat, 01 Oct 2016 17:27:23 +0600</pubDate>
+      
+      <guid>http://masnun.rocks/2016/10/01/creating-an-executable-file-using-cython/</guid>
+      <description>
+
+&lt;hr /&gt;
+
+&lt;p&gt;&lt;strong&gt;Disclaimer&lt;/strong&gt;: I am quite new to Cython, if you find any part of this post is incorrect or
+there are better ways to do something, I would really appreciate your feedback. Please do feel
+free to leave your thoughts in the comments section :)&lt;/p&gt;
+
+&lt;hr /&gt;
+
+&lt;p&gt;I know Cython is supposed to be used for building extensions, but I was wondering if we can
+by any chance compile a Python file into executable binary using Cython? I searched on Google and found this
+&lt;a target=&#34;_blank&#34; href=&#34;http://stackoverflow.com/questions/5105482/compile-main-python-program-using-cython&#34;&gt;StackOverflow&lt;/a&gt;
+question. There is a detailed answer on this question which is very helpful. I tried to follow the
+instructions and after (finding and ) fixing some paths, I managed to do it. I am going to write down
+my experience here in case someone else finds it useful as well.&lt;/p&gt;
+
+&lt;h3 id=&#34;embedding-the-python-interpreter&#34;&gt;Embedding the Python Interpreter&lt;/h3&gt;
+
+&lt;p&gt;Cython compiles the Python or the Cython files into C and then compiles the C code to create the
+extensions. Interestingly, Cython has a CLI switch &lt;code&gt;--embed&lt;/code&gt; whic can generate a &lt;code&gt;main&lt;/code&gt; function.
+This main function embeds the Python interpreter for us. So we can just compile the C file and
+get our single binary executable.&lt;/p&gt;
+
+&lt;h3 id=&#34;getting-started&#34;&gt;Getting Started&lt;/h3&gt;
+
+&lt;p&gt;First we need to have a Python (&lt;code&gt;.py&lt;/code&gt;) or Cython (&lt;code&gt;.pyx&lt;/code&gt;)  file ready for compilation. Let&amp;rsquo;s start with
+a plain old &amp;ldquo;Hello World&amp;rdquo; example.&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class=&#34;language-python&#34;&gt;print(&amp;quot;Hello World!&amp;quot;)
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;Let&amp;rsquo;s convert this Python file to a C source file with embedded Python interpreter.&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class=&#34;language-bash&#34;&gt;cython --embed -o hello_world.c hello_world.py
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;It should generate a file named &lt;code&gt;hello_world.c&lt;/code&gt; in the current directory. We now compile it to an
+executable.&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class=&#34;language-bash&#34;&gt;gcc -v -Os -I /Users/masnun/.pyenv/versions/3.5.1/include/python3.5m -L /usr/local/Frameworks/Python.framework/Versions/3.5/lib  -o test test.c  -lpython3.5  -lpthread -lm -lutil -ldl
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;Please note you must have the Python source code and dynamic libraries in order to successfully compile
+it. I am on OSX and I use PyEnv. So I passed the appropriate paths and it compiled fine.&lt;/p&gt;
+
+&lt;p&gt;Now I have an executable file, which I can run:&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class=&#34;language-bash&#34;&gt;$ ./hello_world
+Hello World!
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;h3 id=&#34;dynamic-linking&#34;&gt;Dynamic Linking&lt;/h3&gt;
+
+&lt;p&gt;In this case, the executable we produce is dynamically linked to our specified Python version. So this
+may not be fully portable (the libraries will need to be available on target machines). But this should
+work fine if we compile against common versions (for example the default version of Python or a version
+easily obtainable via the package manager).&lt;/p&gt;
+
+&lt;h3 id=&#34;including-other-modules&#34;&gt;Including Other Modules&lt;/h3&gt;
+
+&lt;p&gt;Up untill now, I haven&amp;rsquo;t found any easy ways to include other 3rd party pure python modules (ie. &lt;code&gt;requests&lt;/code&gt;)
+directly compiled into the binary. However, if I want to split my codes into multiple files,  I can
+create other &lt;code&gt;.pyx&lt;/code&gt; files and use the &lt;code&gt;include&lt;/code&gt; statement with those.&lt;/p&gt;
+
+&lt;p&gt;For example, here&amp;rsquo;s &lt;code&gt;hello.pyx&lt;/code&gt;:&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class=&#34;language-cython&#34;&gt;cdef struct Person:
+    char *name
+    int age
+
+cdef say():
+    cdef Person masnun = Person(name=&amp;quot;masnun&amp;quot;, age=20)
+    print(&amp;quot;Hello {}, you are {} years old!&amp;quot;.format(masnun.name.decode(&#39;utf8&#39;), masnun.age))
+
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;And here&amp;rsquo;s my main file - &lt;code&gt;test.pyx&lt;/code&gt; -&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class=&#34;language-cython&#34;&gt;include &amp;quot;hello.pyx&amp;quot;
+
+say()
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;Now if I compile &lt;code&gt;test.pyx&lt;/code&gt; just like above example, it will also include the code in &lt;code&gt;hello.pyx&lt;/code&gt; and
+I can call the &lt;code&gt;say&lt;/code&gt; function as if it was in &lt;code&gt;test.pyx&lt;/code&gt; itself.&lt;/p&gt;
+
+&lt;p&gt;However, shared libraries like PyQt would have no issues - we can compile them as is. So
+basically we can take any PyQt code example and compile it with Cython - it should work fine!&lt;/p&gt;
+</description>
+    </item>
+    
+    <item>
+      <title>Can Cython make Python Great in Programming Contests?</title>
+      <link>http://masnun.rocks/2016/09/28/can-cython-make-python-great-in-programming-contests/</link>
+      <pubDate>Wed, 28 Sep 2016 08:00:30 +0600</pubDate>
+      
+      <guid>http://masnun.rocks/2016/09/28/can-cython-make-python-great-in-programming-contests/</guid>
+      <description>
+
+&lt;p&gt;Python is getting very popular as the first programming language in both home and aborad. I know many of the
+Bangladeshi universities have started using Python to introduce beginners to the wonderful world of programming.
+This also seems to be &lt;a target=&#34;_blank&#34; href=&#34;http://cacm.acm.org/blogs/blog-cacm/176450-python-is-now-the-most-popular-introductory-teaching-language-at-top-u-s-universities/fulltext&#34;&gt;the case&lt;/a&gt;
+in the US. I have talked to a few friends from other countries and they agree to the fact that
+Python is quickly becoming the language people learn first. A quick &lt;a target=&#34;_blank&#34; href=&#34;http://bfy.tw/7v1B&#34;&gt;google search&lt;/a&gt; could explain why Python is
+getting so popular among the learners.&lt;/p&gt;
+
+&lt;h3 id=&#34;python-in-programming-contests&#34;&gt;Python in Programming Contests&lt;/h3&gt;
+
+&lt;p&gt;Recently Python has been been included in ICPC, before that Python has usually had less visibility / presence in programming
+contests. And of course there are valid reasons behind that. The defacto implementation of Python - &amp;ldquo;CPython&amp;rdquo; is
+quite slow. It&amp;rsquo;s a dynmaic language and that costs in terms of execution speed. C / C++ / Java is way
+faster than Python and programming contests are all about speed / performance.
+Python would allow you to solve problems in less lines of code but you may often hit the time limit. Despite the
+limitation, people have continiously chosen Python to learn programming and solve problems on numerous programming
+related websites. This might have convnced the authority to include Python in ICPC.  But we do not yet know
+which flavor (read implementation) and version of Python will be available to the ICPC contestants. From
+&lt;a target=&#34;_blank&#34; href=&#34;https://www.quora.com/What-do-you-think-about-the-induction-of-Python-in-ACM-ICPC-2017&#34;&gt;different&lt;/a&gt;
+&lt;a target=&#34;_blank&#34; href=&#34;http://codeforces.com/blog/entry/44899&#34;&gt;sources&lt;/a&gt; I gather that Python will be supported
+but the time limit issue remains - it is not guranteed that a problem can be solved within the time limit using
+Python. That makes me wonder, can Cython help in such cases?&lt;/p&gt;
+
+&lt;h3 id=&#34;introduction-to-cython&#34;&gt;Introduction to Cython&lt;/h3&gt;
+
+&lt;p&gt;From the &lt;a target=&#34;_blank&#34; href=&#34;http://cython.org/&#34;&gt;official website&lt;/a&gt;:&lt;/p&gt;
+
+&lt;blockquote&gt;
+&lt;p&gt;Cython is an optimising static compiler for both the Python programming language and the extended Cython
+programming language (based on Pyrex). It makes writing C extensions for Python as easy as Python itself.&lt;/p&gt;
+&lt;/blockquote&gt;
+
+&lt;p&gt;With Cython, we can add type hints to our existing Python programs and compile them to make them run faster.
+But what is more awesome is the &lt;code&gt;Cython&lt;/code&gt; language - it is a superset of Python and allows us to write Python
+like code which performs like C.&lt;/p&gt;
+
+&lt;p&gt;Don&amp;rsquo;t trust my words, see for yourself in the &lt;a target=&#34;_blank&#34; href=&#34;http://docs.cython.org/en/latest/src/tutorial/cython_tutorial.html&#34;&gt;Tutorial&lt;/a&gt;
+and &lt;a target=&#34;_blank&#34; href=&#34;http://docs.cython.org/en/latest/src/userguide/language_basics.html#language-basics&#34;&gt; Cython Language Basics&lt;/a&gt;.&lt;/p&gt;
+
+&lt;h3 id=&#34;cython-is-fast&#34;&gt;Cython is Fast&lt;/h3&gt;
+
+&lt;p&gt;When I say fast, I really mean - &lt;strong&gt;very very&lt;/strong&gt; fast.&lt;/p&gt;
+
+&lt;p&gt;&lt;center&gt;
+&lt;img src=&#34;http://masnun.rocks/images/cython-vs-c.png&#34; alt=&#34;cython vs c&#34; /&gt;&lt;/p&gt;
+
+&lt;p&gt;Image Source: &lt;a target=&#34;_blank&#34; href=&#34;http://ibm.co/20XSZ4F&#34;&gt;&lt;a href=&#34;http://ibm.co/20XSZ4F&#34;&gt;http://ibm.co/20XSZ4F&lt;/a&gt;&lt;/a&gt;&lt;/p&gt;
+
+&lt;p&gt;&lt;/center&gt;&lt;/p&gt;
+
+&lt;p&gt;The above image is taken from an article from IBM Developer Works which shows how Cython compares to C in terms of speed.&lt;/p&gt;
+
+&lt;p&gt;You can also check out these links for random benchmarks from different people:&lt;/p&gt;
+
+&lt;ul&gt;
+&lt;li&gt;&lt;a target=&#34;_blank&#34; href=&#34;http://www.matthiaskauer.com/2014/02/a-speed-comparison-of-python-cython-and-c/&#34;&gt;Cython beating C++&lt;/a&gt;&lt;/li&gt;
+&lt;li&gt;&lt;a target=&#34;_blank&#34; href=&#34;http://prabhuramachandran.blogspot.com/2008/09/python-vs-cython-vs-d-pyd-vs-c-swig.html&#34;&gt;Cython being 30% faster than the C++&lt;/a&gt;&lt;/li&gt;
+&lt;li&gt;&lt;a target=&#34;_blank&#34; href=&#34;http://aroberge.blogspot.com/2010/01/python-cython-faster-than-c.html&#34;&gt;Another Benchmark&lt;/a&gt;&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;p&gt;And finally, do try yourself and benchmark Cython against C++ and see how it performs!&lt;/p&gt;
+
+&lt;p&gt;Bonus article &amp;ndash; &lt;a href=&#34;https://magic.io/blog/uvloop-blazing-fast-python-networking/&#34;&gt;Blazing fast Python networking&lt;/a&gt; :-)&lt;/p&gt;
+
+&lt;h3 id=&#34;cython-is-easy-to-setup&#34;&gt;Cython is easy to Setup&lt;/h3&gt;
+
+&lt;p&gt;OK, so is it easy to make Cython available in the contest environments? Yes, it is! The &lt;strong&gt;only&lt;/strong&gt; requirements of
+Cython is that you must have a &lt;strong&gt;C Compiler&lt;/strong&gt; installed on your system along with Python. Any computer used for
+contest programming is supposed to have a C compiler installed anyway.&lt;/p&gt;
+
+&lt;p&gt;We just need one command to install Cython:&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class=&#34;language-bash&#34;&gt;pip install Cython
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;&lt;strong&gt;PS:&lt;/strong&gt; Many Scientific distributions of Python (ie. Anaconda) already ships Cython.&lt;/p&gt;
+
+&lt;h3 id=&#34;cython-in-programming-contests&#34;&gt;Cython in Programming Contests&lt;/h3&gt;
+
+&lt;p&gt;Since we saw that Cython is super fast and easy to setup, programming contests can make Cython available
+along with CPython to allow the contestants make their programs faster and get along with Java / C++.
+It will make Python an attractive choice for serious problem solving.&lt;/p&gt;
+
+&lt;p&gt;I know the &lt;code&gt;Cython&lt;/code&gt; language is not exactly Python. It is a superset of the Python language. So beginners might
+not be familiar with the language and that&amp;rsquo;s alright. Beginners can start with Python and start solving the
+easier problems with Python. When they start competitive programming and start hitting the time limits, then
+Cython is one of the options they can choose to make their code run faster. Of course Cython needs some
+understanding of how C works - that&amp;rsquo;s fine too because Cython still feels more productive than writing plain
+old C or C++.&lt;/p&gt;
+
+&lt;h3 id=&#34;final-words&#34;&gt;Final words&lt;/h3&gt;
+
+&lt;p&gt;PyPy is already quite popular in the Python community. Dropbox and Microsoft are also working on their Python
+JITs. I believe that someday Python JITs would be as fast as Java / C++.  Today, Python is making programming
+fun for many beginners. I hope with Cython, we can worry less about the time limits and accept Python as a
+fitting tool in our competitive programming contests!&lt;/p&gt;
+</description>
+    </item>
+    
+  </channel>
+</rss>
