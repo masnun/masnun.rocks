@@ -11,10 +11,10 @@
     
     <item>
       <title>Learning Elixir: First Impressions</title>
-      <link>http://masnun.rocks/2017/02/18/learning-elixirs-first-impressions/</link>
+      <link>http://masnun.rocks/2017/02/18/learning-elixir-first-impressions/</link>
       <pubDate>Sat, 18 Feb 2017 12:12:47 +0600</pubDate>
       
-      <guid>http://masnun.rocks/2017/02/18/learning-elixirs-first-impressions/</guid>
+      <guid>http://masnun.rocks/2017/02/18/learning-elixir-first-impressions/</guid>
       <description>
 
 &lt;p&gt;Elixir is a new programming language that I have become very fond of. It is a dynamic, functional programming language built on top of the Erlang VM (BEAM). Ever wondered why almost all the telecom companies around the world use Erlang for their telephony systems? There has to be a reason, right? Before we dive into Elixir, it is essential to discuss a bit about Erlang and the VM (BEAM).&lt;/p&gt;
