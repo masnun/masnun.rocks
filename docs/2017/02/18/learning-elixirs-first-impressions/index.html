@@ -1,0 +1,295 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <meta charset="utf-8">
+        <meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1">
+        <title>Learning Elixir: First Impressions &middot; Abu Ashraf Masnun</title>
+        <meta name="description" content="Whovian, *nixer, business graduate, passionate software craftsman">
+        <meta name="HandheldFriendly" content="True">
+        <meta name="MobileOptimized" content="320">
+        <meta name="generator" content="Hugo 0.17" />
+        <meta name="robots" content="index,follow">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <link rel="stylesheet" href="http://masnun.rocks/css/normalize.css">
+        <link rel="stylesheet" href="http://masnun.rocks/css/highlight.css">
+        <link rel="stylesheet" href="http://masnun.rocks/css/style.css">
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Open+Sans:300italic,400italic,600italic,700italic,400,600,700,300&subset=latin,cyrillic-ext,latin-ext,cyrillic">
+        <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/font-awesome/4.6.3/css/font-awesome.min.css">
+    </head>
+    <body>
+        
+<script>
+(function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
+(i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
+m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
+})(window,document,'script','//www.google-analytics.com/analytics.js','ga');
+
+ga('create', 'UA-84715154-1', 'auto');
+ga('send', 'pageview');
+</script>
+
+
+        <div id="wrapper">
+            <header class="site-header">
+                <div class="container">
+                    <div class="site-title-wrapper">
+                        
+                            <h1 class="site-title">
+                                <a title="masnun.rocks()" href="http://masnun.rocks/">masnun.rocks()</a>
+                            </h1>
+                        
+                        <a class="button-square" href="http://masnun.rocks/index.xml"><i class="fa fa-rss"></i></a>
+                        
+                            <a class="button-square button-social hint--top" data-hint="Twitter" title="Twitter" href="https://twitter.com/masnun">
+                                <i class="fa fa-twitter"></i>
+                            </a>
+                        
+                        
+                        
+                            <a class="button-square button-social hint--top" data-hint="Github" title="Github" href="https://github.com/masnun">
+                                <i class="fa fa-github-alt"></i>
+                            </a>
+                        
+                        
+                            <a class="button-square button-social hint--top" data-hint="Stack Overflow" title="Stack Overflow" href="http://stackoverflow.com/users/301107/masnun">
+                                <i class="fa fa-stack-overflow"></i>
+                            </a>
+                        
+                        
+                        
+                    </div>
+
+                    <ul class="site-nav">
+                        
+    <li class="site-nav-item">
+        <a title="Home" href="/">Home</a>
+    </li>
+
+    <li class="site-nav-item">
+        <a title="Contact" href="/contact/">Contact</a>
+    </li>
+
+    <li class="site-nav-item">
+        <a title="About" href="/about/">About</a>
+    </li>
+
+                    </ul>
+                </div>
+            </header>
+
+            <div id="container">
+
+
+<div class="container">
+    <article class="post-container">
+        <header class="post-header">
+    <h1 class="post-title">Learning Elixir: First Impressions</h1>
+    
+</header>
+
+        <div class="post-content clearfix">
+    
+
+    
+
+<p>Elixir is a new programming language that I have become very fond of. It is a dynamic, functional programming language built on top of the Erlang VM (BEAM). Ever wondered why almost all the telecom companies around the world use Erlang for their telephony systems? There has to be a reason, right? Before we dive into Elixir, it is essential to discuss a bit about Erlang and the VM (BEAM).</p>
+
+<h3 id="a-brief-intro-to-erlang">A brief intro to Erlang</h3>
+
+<p>Erlang was developed by Ericsson and was written in Prolog in it&rsquo;s early days. Erlang proved it&rsquo;s worth as a suitable language that can be used in telephone exchanges but the prolog interpreter was
+too slow for that job. So a group inside Ericsson developed the BEAM VM that compiles Erlang to C. The effort was very successful and in 1998 Ericsson launched their new AXD301 switch - which had  over a million lines of Erlang code. Thanks to the reliability and stability of the new VM, the system managed &ldquo;nine 9s&rdquo; uptime. According to <a href="https://en.wikipedia.org/wiki/High_availability#Percentage_calculation">this Wikipedia article</a>, that means less than 31.5569 milliseconds downtime per year. However, Ericsson banned Erlang in it&rsquo;s products because it was &ldquo;proprietary&rdquo;. This made Armstrong, the creator of the language and other associates leave Ericsson. And the implementation was open sourced at the end of the year. Ericsson eventually lifted that ban and rehired Armstrong back in 2004.</p>
+
+<p>Telephone exchanges need very stable and reliable systems with massive uptime. Erlang provided that. The Erlang VM also features hot code reloading - so you don&rsquo;t have to restart your software to load new codes. No restart - no downtime.</p>
+
+<p>Concurrency is another very strong feat of Erlang. In the telcos, it&rsquo;s very important to be able to handle a lot of concurrent operations at a time. Erlang really excels at that - millions of concurrent connections yet no downtime. That&rsquo;s something, no?</p>
+
+<blockquote>
+<p>If somebody came to me and wanted to pay me a lot of money to build a large scale message handling system that really had to be up all the time, could never afford to go down for years at a time, I would unhesitatingly choose Erlang to build it in.<br />
+<br/>
+&ndash; Tim Bray, Director of Web Technologies, Sun Microsystems in OSCON, July 2008</p>
+</blockquote>
+
+<p>Erlang comes with the OTP framework which includes some ready to use components and design patterns to follow for building robust Erlang applications. Erlang is often called &ldquo;Erlang/OTP&rdquo; because of this accompanying framework.</p>
+
+<p>We have seen the battle proven track record of Erlang in Telcos. But that&rsquo;s not all. Erlang has been adopted in modern day applications too. For example WhatsApp used Erlang to build and scale their messaging platform across millions of their users. Facebook also used Erlang for their chat infrastructure.</p>
+
+<blockquote>
+<p>If Java is &lsquo;write once, run anywhere&rsquo;, then Erlang is &lsquo;write once, run forever&rsquo;.
+<br/><br/>
+&ndash; Joe Armstrong, Creator of Erlang, 2013</p>
+</blockquote>
+
+<h3 id="why-do-we-need-elixir">Why do we need Elixir?</h3>
+
+<p>So Erlang is successful and battle tested, matured over the last 25 years or so, then why do we need a new language? Well, Erlang itself is very robust, scalable, matured but the syntax of the language was not easily approachable for me. And I believe in that context, I am not alone.</p>
+
+<p>On the other hand, Elixir as a language is relatively much easier to start and grasp. I, for example, have never really felt motivated enough to learn Erlang. But Elixir has been  a totally different experience. I did some reading. Liked the syntax, kept on reading, got hooked. Read a book and now I am writing a blog post praising the language. So I would say Elixir is much more approachable than Erlang with the same benefits.</p>
+
+<p>Elixir uses the same BEAM VM and offers the same advantages of Erlang - fault tolerance, scalability, easy concurrency while being a very productive language for the beginners (and of course for the more advanced users). Performance + Productivity = Win.</p>
+
+<p>The interoperability between Erlang and Elixir is also excellent. We can use Erlang standard library as well as third party packages from inside Elixir. So despite being a new language, Elixir can already leverage the underlying maturity of the VM and the years of hard work done in the Erlang eco system.</p>
+
+<h3 id="why-i-am-so-excited-about-elixir">Why I am so excited about Elixir?</h3>
+
+<p>In my day to day work, I am mostly a web developer. I have done my share of PHP and then moved on to Python. Today, I am a Python developer with most of my work being in Django. I absolutely love Django as the framework. But then I noticed Phoenix and Elixir. Some of the blog posts I came across heavily motivated me to explore both Elixir and Phoenix.</p>
+
+<ul>
+<li><p><a href="https://hashrocket.com/blog/posts/websocket-shootout">Elixir / Phoenix is awesome at handling websocket / real time communication</a></p></li>
+
+<li><p><a href="https://dockyard.com/blog/2016/08/09/phoenix-channels-vs-rails-action-cable">Just look at the availability, scalability and response time - Phoenix Channels vs Rails Action Cable</a></p></li>
+
+<li><p><a href="https://github.com/mroth/phoenix-showdown">Phoenix is very fast, very performant</a></p></li>
+
+<li><p><a href="https://github.com/doomspork/elixir-companies">Many people are using it in production</a></p></li>
+
+<li><p><a href="https://medium.com/@Pinterest_Engineering/introducing-new-open-source-tools-for-the-elixir-community-2f7bb0bb7d8c#.on9d0vf5m">Pinterest</a></p></li>
+
+<li><p><a href="http://www.techworld.com/apps/how-elixir-helped-bleacher-report-handle-8x-more-traffic-3653957/">Bleacher Report handles 8x more traffic</a></p></li>
+</ul>
+
+<p>Not to mention I have played around a bit with a new Phoenix app. It was very easy to get started and everything made sense. I tried making some changes to see how it can fit my requirements. Surprisingly, achieving what I wanted to do didn&rsquo;t take me much time although I was just a beginner. These things really attracted me. The community is very friendly and helpful. The tooling was superb (in fact much much better than what I am generally used to).</p>
+
+<p>With the growth of IoT, we will gradually feel the need of languages and platforms which can handle more and more concurrent connections. Elixir with Erlang and OTP in it&rsquo;s back, will become one of the major players in the IoT arena.</p>
+
+<p>In short - I felt that Phoenix really delivers on it&rsquo;s promise. It&rsquo;s very performant while I am being productive. I am pretty hopeful that Elixir and Phoenix will be a very good choice for what I do at work.</p>
+
+<h3 id="where-to-learn-about-elixir">Where to learn about Elixir?</h3>
+
+<p>I really liked the wonderful Elixir School. The official documentation is also excellent. If you want to know what&rsquo;s happening in the community, do keep an eye on Twitter, follow some key people. The Elixir subreddit is also a good place. And of course, don&rsquo;t forget to join the Elixir Slack.</p>
+
+<ul>
+<li><a href="https://elixirschool.com/">Elixir School</a></li>
+<li><a href="https://elixir-slackin.herokuapp.com/">Official Guides</a></li>
+<li><a href="http://elixir-lang.org/docs.html">Docs</a></li>
+<li><a href="https://elixir-slackin.herokuapp.com/">Elixir Slack</a></li>
+<li><a href="https://github.com/h4cc/awesome-elixir">Awesome Elixir</a></li>
+<li><a href="http://elixirfountain.com/">Elixir Fountain</a></li>
+<li><a href="https://elixircasts.io/">Elixir Casts</a></li>
+<li><a href="https://www.reddit.com/r/elixir/">Elixir Subreddit</a></li>
+<li><a href="https://elixirstatus.com/">Elixir Status</a></li>
+<li><a href="https://elixirweekly.net/">Elixir Weekly</a></li>
+</ul>
+
+<p>If you&rsquo;re looking for book recommendation or other resources, checkout the <a href="http://elixir-lang.org/learning.html">Learning</a> section on the official Elixir website.</p>
+
+<h3 id="does-elixir-look-difficult-hard">Does Elixir look difficult/hard?</h3>
+
+<p>Thought I must warn you - since Elixir is a functional programming language, it might take some time to get used to some parts of it, specially for those of us who have been playing in the object oriented world for too long. If you find parts of the language not so comfortable, skip that for the time being and explore other niceties. Some of the functional concepts might take a little time to comprehend but that&rsquo;s alright. Give it some time and once you grasp the concepts, it will blow your mind away. You would love the power, flexibility and the expressiveness very soon.</p>
+
+</div>
+
+        <hr/>
+        <div>
+            
+            
+            <link href="//cdn-images.mailchimp.com/embedcode/horizontal-slim-10_7.css" rel="stylesheet" type="text/css">
+            <style type="text/css">
+                #mc_embed_signup{background:#fff; clear:left; font:14px Helvetica,Arial,sans-serif; width:100%;}
+                 
+            </style>
+            <div id="mc_embed_signup">
+            <form action="//rocks.us6.list-manage.com/subscribe/post?u=9629b854ab5af8778b9853891&amp;id=ad5968cb3a" method="post" id="mc-embedded-subscribe-form" name="mc-embedded-subscribe-form" class="validate" target="_blank" novalidate>
+                <div id="mc_embed_signup_scroll">
+                <label for="mce-EMAIL">Subscribe via Email</label>
+                <input type="email" value="" name="EMAIL" class="email" id="mce-EMAIL" placeholder="email address" required>
+                
+                <div style="position: absolute; left: -5000px;" aria-hidden="true"><input type="text" name="b_9629b854ab5af8778b9853891_ad5968cb3a" tabindex="-1" value=""></div>
+                <div class="clear"><input type="submit" value="Subscribe" name="subscribe" id="mc-embedded-subscribe" class="button"></div>
+                </div>
+            </form>
+            </div>
+
+            
+        
+        </div>
+        <hr/>
+
+        <footer class="post-footer clearfix">
+    
+        <p class="post-tags">
+            <span>Tagged:</span>
+            
+                 <a href="/tags/elixir/">Elixir</a>
+            
+        </p>
+    
+
+    <div class="share">
+        <a class="icon-twitter" href="http://twitter.com/share?text=Learning%20Elixir%3a%20First%20Impressions&url=http%3a%2f%2fmasnun.rocks%2f2017%2f02%2f18%2flearning-elixirs-first-impressions%2f"
+            onclick="window.open(this.href, 'twitter-share', 'width=550,height=235');return false;">
+            <i class="fa fa-twitter"></i>
+            <span class="hidden">Twitter</span>
+        </a>
+
+        <a class="icon-facebook" href="https://www.facebook.com/sharer/sharer.php?u=http%3a%2f%2fmasnun.rocks%2f2017%2f02%2f18%2flearning-elixirs-first-impressions%2f"
+            onclick="window.open(this.href, 'facebook-share','width=580,height=296');return false;">
+            <i class="fa fa-facebook"></i>
+            <span class="hidden">Facebook</span>
+        </a>
+
+        <a class="icon-google-plus" href="https://plus.google.com/share?url=http%3a%2f%2fmasnun.rocks%2f2017%2f02%2f18%2flearning-elixirs-first-impressions%2f"
+           onclick="window.open(this.href, 'google-plus-share', 'width=490,height=530');return false;">
+           <i class="fa fa-google-plus"></i>
+            <span class="hidden">Google+</span>
+        </a>
+    </div>
+</footer>
+
+        <br/>
+
+        
+    <div class="comments">
+        <div id="disqus_thread"></div>
+<script type="text/javascript">
+    var disqus_shortname = 'masnun-rocks';
+    var disqus_identifier = 'http:\/\/masnun.rocks\/2017\/02\/18\/learning-elixirs-first-impressions\/';
+    var disqus_title = 'Learning Elixir: First Impressions';
+    var disqus_url = 'http:\/\/masnun.rocks\/2017\/02\/18\/learning-elixirs-first-impressions\/';
+
+    (function() {
+        var dsq = document.createElement('script'); dsq.type = 'text/javascript'; dsq.async = true;
+        dsq.src = '//' + disqus_shortname + '.disqus.com/embed.js';
+        (document.getElementsByTagName('head')[0] || document.getElementsByTagName('body')[0]).appendChild(dsq);
+    })();
+</script>
+<noscript>Please enable JavaScript to view the <a href="http://disqus.com/?ref_noscript">comments powered by Disqus.</a></noscript>
+<a href="http://disqus.com" class="dsq-brlink">comments powered by <span class="logo-disqus">Disqus</span></a>
+    </div>
+
+
+    </article>
+
+    
+</div>
+
+            </div>
+        </div>
+
+        <footer class="footer">
+            <div class="container">
+                <div class="site-title-wrapper">
+                    <h1 class="site-title">
+                        <a title="masnun.rocks()" href="http://masnun.rocks/">masnun.rocks()</a>
+                    </h1>
+                    <a class="button-square button-jump-top js-jump-top" href="#">
+                        <i class="fa fa-angle-up"></i>
+                    </a>
+                </div>
+
+                <p class="footer-copyright">
+                    <span>&copy; 2017 / Powered by <a href="http://gohugo.io/">Hugo</a></span>
+                </p>
+                <p class="footer-copyright">
+                    <span><a href="https://github.com/roryg/ghostwriter">Ghostwriter theme</a> By <a href="http://jollygoodthemes.com">JollyGoodThemes</a></span>
+                    <span>/ <a href="https://github.com/jbub/ghostwriter">Ported</a> to Hugo By <a href="https://github.com/jbub">jbub</a></span>
+                </p>
+            </div>
+        </footer>
+
+        <script src="http://masnun.rocks/js/jquery-1.11.3.min.js"></script>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/8.5/highlight.min.js"></script>
+        <script src="http://masnun.rocks/js/jquery.fitvids.js"></script>
+        <script src="http://masnun.rocks/js/scripts.js"></script>
+    </body>
+</html>
+

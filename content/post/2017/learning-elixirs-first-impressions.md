@@ -2,7 +2,7 @@
 description = ""
 author = ""
 tags = ["Elixir"]
-title = "Why I am learning Elixir"
+title = "Learning Elixir: First Impressions"
 date = "2017-02-18T12:12:47+06:00"
 +++
 
