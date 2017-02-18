@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <meta charset="utf-8">
+        <meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1">
+        <title>Creating an executable file using Cython &middot; Abu Ashraf Masnun</title>
+        <meta name="description" content="Whovian, *nixer, business graduate, passionate software craftsman">
+        <meta name="HandheldFriendly" content="True">
+        <meta name="MobileOptimized" content="320">
+        <meta name="generator" content="Hugo 0.17" />
+        <meta name="robots" content="index,follow">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <link rel="stylesheet" href="http://masnun.rocks/css/normalize.css">
+        <link rel="stylesheet" href="http://masnun.rocks/css/highlight.css">
+        <link rel="stylesheet" href="http://masnun.rocks/css/style.css">
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Open+Sans:300italic,400italic,600italic,700italic,400,600,700,300&subset=latin,cyrillic-ext,latin-ext,cyrillic">
+        <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/font-awesome/4.6.3/css/font-awesome.min.css">
+    </head>
+    <body>
+        
+<script>
+(function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
+(i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
+m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
+})(window,document,'script','//www.google-analytics.com/analytics.js','ga');
+
+ga('create', 'UA-84715154-1', 'auto');
+ga('send', 'pageview');
+</script>
+
+
+        <div id="wrapper">
+            <header class="site-header">
+                <div class="container">
+                    <div class="site-title-wrapper">
+                        
+                            <h1 class="site-title">
+                                <a title="masnun.rocks()" href="http://masnun.rocks/">masnun.rocks()</a>
+                            </h1>
+                        
+                        <a class="button-square" href="http://masnun.rocks/index.xml"><i class="fa fa-rss"></i></a>
+                        
+                            <a class="button-square button-social hint--top" data-hint="Twitter" title="Twitter" href="https://twitter.com/masnun">
+                                <i class="fa fa-twitter"></i>
+                            </a>
+                        
+                        
+                        
+                            <a class="button-square button-social hint--top" data-hint="Github" title="Github" href="https://github.com/masnun">
+                                <i class="fa fa-github-alt"></i>
+                            </a>
+                        
+                        
+                            <a class="button-square button-social hint--top" data-hint="Stack Overflow" title="Stack Overflow" href="http://stackoverflow.com/users/301107/masnun">
+                                <i class="fa fa-stack-overflow"></i>
+                            </a>
+                        
+                        
+                        
+                    </div>
+
+                    <ul class="site-nav">
+                        
+    <li class="site-nav-item">
+        <a title="Home" href="/">Home</a>
+    </li>
+
+    <li class="site-nav-item">
+        <a title="Contact" href="/contact/">Contact</a>
+    </li>
+
+    <li class="site-nav-item">
+        <a title="About" href="/about/">About</a>
+    </li>
+
+                    </ul>
+                </div>
+            </header>
+
+            <div id="container">
+
+
+<div class="container">
+    <article class="post-container">
+        <header class="post-header">
+    <h1 class="post-title">Creating an executable file using Cython</h1>
+    
+</header>
+
+        <div class="post-content clearfix">
+    
+
+    
+
+<hr />
+
+<p><strong>Disclaimer</strong>: I am quite new to Cython, if you find any part of this post is incorrect or
+there are better ways to do something, I would really appreciate your feedback. Please do feel
+free to leave your thoughts in the comments section :)</p>
+
+<hr />
+
+<p>I know Cython is supposed to be used for building extensions, but I was wondering if we can
+by any chance compile a Python file into executable binary using Cython? I searched on Google and found this
+<a target="_blank" href="http://stackoverflow.com/questions/5105482/compile-main-python-program-using-cython">StackOverflow</a>
+question. There is a detailed answer on this question which is very helpful. I tried to follow the
+instructions and after (finding and ) fixing some paths, I managed to do it. I am going to write down
+my experience here in case someone else finds it useful as well.</p>
+
+<h3 id="embedding-the-python-interpreter">Embedding the Python Interpreter</h3>
+
+<p>Cython compiles the Python or the Cython files into C and then compiles the C code to create the
+extensions. Interestingly, Cython has a CLI switch <code>--embed</code> whic can generate a <code>main</code> function.
+This main function embeds the Python interpreter for us. So we can just compile the C file and
+get our single binary executable.</p>
+
+<h3 id="getting-started">Getting Started</h3>
+
+<p>First we need to have a Python (<code>.py</code>) or Cython (<code>.pyx</code>)  file ready for compilation. Let&rsquo;s start with
+a plain old &ldquo;Hello World&rdquo; example.</p>
+
+<pre><code class="language-python">print(&quot;Hello World!&quot;)
+</code></pre>
+
+<p>Let&rsquo;s convert this Python file to a C source file with embedded Python interpreter.</p>
+
+<pre><code class="language-bash">cython --embed -o hello_world.c hello_world.py
+</code></pre>
+
+<p>It should generate a file named <code>hello_world.c</code> in the current directory. We now compile it to an
+executable.</p>
+
+<pre><code class="language-bash">gcc -v -Os -I /Users/masnun/.pyenv/versions/3.5.1/include/python3.5m -L /usr/local/Frameworks/Python.framework/Versions/3.5/lib  -o test test.c  -lpython3.5  -lpthread -lm -lutil -ldl
+</code></pre>
+
+<p>Please note you must have the Python source code and dynamic libraries in order to successfully compile
+it. I am on OSX and I use PyEnv. So I passed the appropriate paths and it compiled fine.</p>
+
+<p>Now I have an executable file, which I can run:</p>
+
+<pre><code class="language-bash">$ ./hello_world
+Hello World!
+</code></pre>
+
+<h3 id="dynamic-linking">Dynamic Linking</h3>
+
+<p>In this case, the executable we produce is dynamically linked to our specified Python version. So this
+may not be fully portable (the libraries will need to be available on target machines). But this should
+work fine if we compile against common versions (for example the default version of Python or a version
+easily obtainable via the package manager).</p>
+
+<h3 id="including-other-modules">Including Other Modules</h3>
+
+<p>Up untill now, I haven&rsquo;t found any easy ways to include other 3rd party pure python modules (ie. <code>requests</code>)
+directly compiled into the binary. However, if I want to split my codes into multiple files,  I can
+create other <code>.pyx</code> files and use the <code>include</code> statement with those.</p>
+
+<p>For example, here&rsquo;s <code>hello.pyx</code>:</p>
+
+<pre><code class="language-cython">cdef struct Person:
+    char *name
+    int age
+
+cdef say():
+    cdef Person masnun = Person(name=&quot;masnun&quot;, age=20)
+    print(&quot;Hello {}, you are {} years old!&quot;.format(masnun.name.decode('utf8'), masnun.age))
+
+</code></pre>
+
+<p>And here&rsquo;s my main file - <code>test.pyx</code> -</p>
+
+<pre><code class="language-cython">include &quot;hello.pyx&quot;
+
+say()
+</code></pre>
+
+<p>Now if I compile <code>test.pyx</code> just like above example, it will also include the code in <code>hello.pyx</code> and
+I can call the <code>say</code> function as if it was in <code>test.pyx</code> itself.</p>
+
+<p>However, shared libraries like PyQt would have no issues - we can compile them as is. So
+basically we can take any PyQt code example and compile it with Cython - it should work fine!</p>
+
+</div>
+
+        <hr/>
+        <div>
+            
+            
+            <link href="//cdn-images.mailchimp.com/embedcode/horizontal-slim-10_7.css" rel="stylesheet" type="text/css">
+            <style type="text/css">
+                #mc_embed_signup{background:#fff; clear:left; font:14px Helvetica,Arial,sans-serif; width:100%;}
+                 
+            </style>
+            <div id="mc_embed_signup">
+            <form action="//rocks.us6.list-manage.com/subscribe/post?u=9629b854ab5af8778b9853891&amp;id=ad5968cb3a" method="post" id="mc-embedded-subscribe-form" name="mc-embedded-subscribe-form" class="validate" target="_blank" novalidate>
+                <div id="mc_embed_signup_scroll">
+                <label for="mce-EMAIL">Subscribe via Email</label>
+                <input type="email" value="" name="EMAIL" class="email" id="mce-EMAIL" placeholder="email address" required>
+                
+                <div style="position: absolute; left: -5000px;" aria-hidden="true"><input type="text" name="b_9629b854ab5af8778b9853891_ad5968cb3a" tabindex="-1" value=""></div>
+                <div class="clear"><input type="submit" value="Subscribe" name="subscribe" id="mc-embedded-subscribe" class="button"></div>
+                </div>
+            </form>
+            </div>
+
+            
+        
+        </div>
+        <hr/>
+
+        <footer class="post-footer clearfix">
+    
+        <p class="post-tags">
+            <span>Tagged:</span>
+            
+                 <a href="/tags/python/">Python</a>
+            
+                 <a href="/tags/cython/">Cython</a>
+            
+        </p>
+    
+
+    <div class="share">
+        <a class="icon-twitter" href="http://twitter.com/share?text=Creating%20an%20executable%20file%20using%20Cython&url=http%3a%2f%2fmasnun.rocks%2f2016%2f10%2f01%2fcreating-an-executable-file-using-cython%2f"
+            onclick="window.open(this.href, 'twitter-share', 'width=550,height=235');return false;">
+            <i class="fa fa-twitter"></i>
+            <span class="hidden">Twitter</span>
+        </a>
+
+        <a class="icon-facebook" href="https://www.facebook.com/sharer/sharer.php?u=http%3a%2f%2fmasnun.rocks%2f2016%2f10%2f01%2fcreating-an-executable-file-using-cython%2f"
+            onclick="window.open(this.href, 'facebook-share','width=580,height=296');return false;">
+            <i class="fa fa-facebook"></i>
+            <span class="hidden">Facebook</span>
+        </a>
+
+        <a class="icon-google-plus" href="https://plus.google.com/share?url=http%3a%2f%2fmasnun.rocks%2f2016%2f10%2f01%2fcreating-an-executable-file-using-cython%2f"
+           onclick="window.open(this.href, 'google-plus-share', 'width=490,height=530');return false;">
+           <i class="fa fa-google-plus"></i>
+            <span class="hidden">Google+</span>
+        </a>
+    </div>
+</footer>
+
+        <br/>
+
+        
+    <div class="comments">
+        <div id="disqus_thread"></div>
+<script type="text/javascript">
+    var disqus_shortname = 'masnun-rocks';
+    var disqus_identifier = 'http:\/\/masnun.rocks\/2016\/10\/01\/creating-an-executable-file-using-cython\/';
+    var disqus_title = 'Creating an executable file using Cython';
+    var disqus_url = 'http:\/\/masnun.rocks\/2016\/10\/01\/creating-an-executable-file-using-cython\/';
+
+    (function() {
+        var dsq = document.createElement('script'); dsq.type = 'text/javascript'; dsq.async = true;
+        dsq.src = '//' + disqus_shortname + '.disqus.com/embed.js';
+        (document.getElementsByTagName('head')[0] || document.getElementsByTagName('body')[0]).appendChild(dsq);
+    })();
+</script>
+<noscript>Please enable JavaScript to view the <a href="http://disqus.com/?ref_noscript">comments powered by Disqus.</a></noscript>
+<a href="http://disqus.com" class="dsq-brlink">comments powered by <span class="logo-disqus">Disqus</span></a>
+    </div>
+
+
+    </article>
+
+    
+</div>
+
+            </div>
+        </div>
+
+        <footer class="footer">
+            <div class="container">
+                <div class="site-title-wrapper">
+                    <h1 class="site-title">
+                        <a title="masnun.rocks()" href="http://masnun.rocks/">masnun.rocks()</a>
+                    </h1>
+                    <a class="button-square button-jump-top js-jump-top" href="#">
+                        <i class="fa fa-angle-up"></i>
+                    </a>
+                </div>
+
+                <p class="footer-copyright">
+                    <span>&copy; 2017 / Powered by <a href="http://gohugo.io/">Hugo</a></span>
+                </p>
+                <p class="footer-copyright">
+                    <span><a href="https://github.com/roryg/ghostwriter">Ghostwriter theme</a> By <a href="http://jollygoodthemes.com">JollyGoodThemes</a></span>
+                    <span>/ <a href="https://github.com/jbub/ghostwriter">Ported</a> to Hugo By <a href="https://github.com/jbub">jbub</a></span>
+                </p>
+            </div>
+        </footer>
+
+        <script src="http://masnun.rocks/js/jquery-1.11.3.min.js"></script>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/8.5/highlight.min.js"></script>
+        <script src="http://masnun.rocks/js/jquery.fitvids.js"></script>
+        <script src="http://masnun.rocks/js/scripts.js"></script>
+    </body>
+</html>
+

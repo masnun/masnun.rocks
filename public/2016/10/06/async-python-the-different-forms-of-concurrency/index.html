@@ -1,0 +1,546 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <meta charset="utf-8">
+        <meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1">
+        <title>Async Python:  The Different Forms of Concurrency &middot; Abu Ashraf Masnun</title>
+        <meta name="description" content="Whovian, *nixer, business graduate, passionate software craftsman">
+        <meta name="HandheldFriendly" content="True">
+        <meta name="MobileOptimized" content="320">
+        <meta name="generator" content="Hugo 0.17" />
+        <meta name="robots" content="index,follow">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <link rel="stylesheet" href="http://masnun.rocks/css/normalize.css">
+        <link rel="stylesheet" href="http://masnun.rocks/css/highlight.css">
+        <link rel="stylesheet" href="http://masnun.rocks/css/style.css">
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Open+Sans:300italic,400italic,600italic,700italic,400,600,700,300&subset=latin,cyrillic-ext,latin-ext,cyrillic">
+        <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/font-awesome/4.6.3/css/font-awesome.min.css">
+    </head>
+    <body>
+        
+<script>
+(function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
+(i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
+m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
+})(window,document,'script','//www.google-analytics.com/analytics.js','ga');
+
+ga('create', 'UA-84715154-1', 'auto');
+ga('send', 'pageview');
+</script>
+
+
+        <div id="wrapper">
+            <header class="site-header">
+                <div class="container">
+                    <div class="site-title-wrapper">
+                        
+                            <h1 class="site-title">
+                                <a title="masnun.rocks()" href="http://masnun.rocks/">masnun.rocks()</a>
+                            </h1>
+                        
+                        <a class="button-square" href="http://masnun.rocks/index.xml"><i class="fa fa-rss"></i></a>
+                        
+                            <a class="button-square button-social hint--top" data-hint="Twitter" title="Twitter" href="https://twitter.com/masnun">
+                                <i class="fa fa-twitter"></i>
+                            </a>
+                        
+                        
+                        
+                            <a class="button-square button-social hint--top" data-hint="Github" title="Github" href="https://github.com/masnun">
+                                <i class="fa fa-github-alt"></i>
+                            </a>
+                        
+                        
+                            <a class="button-square button-social hint--top" data-hint="Stack Overflow" title="Stack Overflow" href="http://stackoverflow.com/users/301107/masnun">
+                                <i class="fa fa-stack-overflow"></i>
+                            </a>
+                        
+                        
+                        
+                    </div>
+
+                    <ul class="site-nav">
+                        
+    <li class="site-nav-item">
+        <a title="Home" href="/">Home</a>
+    </li>
+
+    <li class="site-nav-item">
+        <a title="Contact" href="/contact/">Contact</a>
+    </li>
+
+    <li class="site-nav-item">
+        <a title="About" href="/about/">About</a>
+    </li>
+
+                    </ul>
+                </div>
+            </header>
+
+            <div id="container">
+
+
+<div class="container">
+    <article class="post-container">
+        <header class="post-header">
+    <h1 class="post-title">Async Python:  The Different Forms of Concurrency</h1>
+    
+</header>
+
+        <div class="post-content clearfix">
+    
+
+    
+
+<p>With the advent of Python 3 the way we&rsquo;re hearing a lot of buzz about &ldquo;async&rdquo; and &ldquo;concurrency&rdquo;, one
+might simply assume that Python recently introduced these concepts/capabilities. But that would be quite
+far from the truth. We have had async and concurrent operations for quite some times now. Also many
+beginners may think that <code>asyncio</code> is the only/best way to do async/concurrent operations. In this post
+we shall explore the different ways we can achieve concurrency and the benefits/drawbacks of them.</p>
+
+<h3 id="defining-the-terms">Defining The Terms</h3>
+
+<p>Before we dive into the technical aspects, it is essential to have some basic understanding of the terms
+frequently used in this context.</p>
+
+<h4 id="sync-vs-async">Sync vs Async</h4>
+
+<p>In Syncrhonous operations, the tasks are executed in sync, one after one. In asynchronous operations,
+tasks may start and complete independent of each other. One async task may start and continue running
+while the execution moves on to a new task. Async tasks don&rsquo;t block (make the execution wait for it&rsquo;s
+completion) operations and usually run in the background.</p>
+
+<p>For example, you have to call a travel agency to book for your next vacation. And you need to send an
+email to your boss before you go on the tour. In synchronous fashion, you would first call the travel
+agency, if they put you on hold for a moment, you keep waiting and waiting. Once it&rsquo;s done, you start
+writing the email to your boss. Here you complete one task after another. But if you be clever and
+while you are waiting on hold, you could start writing up the email, when they talk to you, you pause
+writing the email, talk to them and then resume the email writing. You could also ask a friend to
+make the call while you finish that email. This is asynchronicity. Tasks don&rsquo;t block one another.</p>
+
+<h4 id="concurrency-and-parallelism">Concurrency and Parallelism</h4>
+
+<p>Concurrency implies that two tasks make progress together. In our previous example, when we
+considered the async example, we were making progress on both the call with the travel agent and
+writing the email. This is concurrency.</p>
+
+<p>When we talked about taking help from a friend with the call, in that case both tasks would be running
+in parallel.</p>
+
+<p>Parallelism is in fact a form of concurrency. But parallelism is hardware dependent. For example if
+there&rsquo;s only one core in the CPU, two operations can&rsquo;t really run in parallel. They just share time
+slices from the same core. This is concurrency but not parallelism. But when we have multiple cores,
+we can actually run two or more operations (depending on the number of cores) in parallel.</p>
+
+<h4 id="quick-recap">Quick Recap</h4>
+
+<p>So this is what we have realized so far:</p>
+
+<ul>
+    <li> <b>Sync:</b> Blocking operations.</li>
+    <li> <b>Async:</b> Non blocking operations.</li>
+    <li> <b>Concurrency:</b> Making progress together.</li>
+    <li> <b>Parallelism:</b> Making progress in parallel.</li>
+</ul>
+
+<p><br/></p>
+
+<p><center>
+    <em>Parallelism implies Concurrency. But Concurrency doesn&rsquo;t always mean Parallelism.</em>
+</center></p>
+
+<p><br/></p>
+
+<h3 id="threads-processes">Threads &amp; Processes</h3>
+
+<p>Python has had <strong>Threads</strong> for a very long time. Threads allow us to run our operations concurrently. But there was/is a problem with
+the <strong>Global Interpreter Lock (GIL)</strong> for which the threading could not provide true parallelism. However, with <strong>multiprocessing</strong>,
+it is now possible to leverage multiple cores with Python.</p>
+
+<h4 id="threads">Threads</h4>
+
+<p>Let&rsquo;s see a quick example. In the following code, the <code>worker</code> function will be run on multiple threads, asynchronously and
+concurrently.</p>
+
+<pre><code class="language-python">import threading
+import time
+import random
+
+
+def worker(number):
+    sleep = random.randrange(1, 10)
+    time.sleep(sleep)
+    print(&quot;I am Worker {}, I slept for {} seconds&quot;.format(number, sleep))
+
+
+for i in range(5):
+    t = threading.Thread(target=worker, args=(i,))
+    t.start()
+
+print(&quot;All Threads are queued, let's see when they finish!&quot;)
+
+</code></pre>
+
+<p>Here&rsquo;s a sample output from a run on my machine:</p>
+
+<pre><code class="language-text">$ python thread_test.py
+All Threads are queued, let's see when they finish!
+I am Worker 1, I slept for 1 seconds
+I am Worker 3, I slept for 4 seconds
+I am Worker 4, I slept for 5 seconds
+I am Worker 2, I slept for 7 seconds
+I am Worker 0, I slept for 9 seconds
+</code></pre>
+
+<p>So you can see we start 5 threads, they make progress together and when we start the threads (and thus executing the worker function),
+the operation does not wait for the threads to complete before moving on to the next print statement. So this is an async operation.</p>
+
+<p>In our example, we passed a function to the <code>Thread</code> constructor. But if we wanted we could also subclass it and implement the code
+as a method (in a more OOP way).</p>
+
+<p><strong>Further Reading:</strong></p>
+
+<p>To know about Threads in details, you can follow these resources:</p>
+
+<ul>
+<li><a href="https://pymotw.com/3/threading/index.html">https://pymotw.com/3/threading/index.html</a></li>
+</ul>
+
+<h4 id="global-interpreter-lock-gil">Global Interpreter Lock (GIL)</h4>
+
+<p>The Global Interpreter Lock aka GIL was introduced to make CPython&rsquo;s memory handling easier and to allow better integrations with C
+(for example the extensions). The GIL is a locking mechanism that the Python interpreter runs only one thread at a time. That is
+only one thread can execute Python byte code at any given time. This GIL makes sure that multiple threads <strong>DO NOT</strong> run in parallel.</p>
+
+<p>Quick facts about the GIL:</p>
+
+<ul>
+<li>One thread can run at a time.</li>
+<li>The Python Interpreter switches between threads to allow concurrency.</li>
+<li>The GIL is only applicable to CPython (the defacto implementation). Other implementations like Jython, IronPython don&rsquo;t have GIL.</li>
+<li>GIL makes single threaded programs fast.</li>
+<li>For I/O bound operations, GIL usually doesn&rsquo;t harm much.</li>
+<li>GIL makes it easy to integrate non thread safe C libraries, thansk to the GIL, we have many high performance extensions/modules written in C.</li>
+<li>For CPU bound tasks, the interpreter checks between <code>N</code> ticks and switches threads. So one thread does not block others.</li>
+</ul>
+
+<p>Many people see the <code>GIL</code> as a weakness. I see it as a blessing since it has made libraries like NumPy, SciPy possible which have
+taken Python an unique position in the scientific communities.</p>
+
+<p><strong>Further Reading:</strong></p>
+
+<p>These resources can help dive deeper into the GIL:</p>
+
+<ul>
+<li><a href="http://www.dabeaz.com/python/UnderstandingGIL.pdf">http://www.dabeaz.com/python/UnderstandingGIL.pdf</a></li>
+</ul>
+
+<h4 id="processes">Processes</h4>
+
+<p>To get parallelism, Python introduced the <code>multiprocessing</code> module which provides APIs which will feel very similar if you have used
+Threading before.</p>
+
+<p>In fact, we will just go and change our previous example. Here&rsquo;s the modified version that uses <code>Process</code> instead of <code>Thread</code>.</p>
+
+<pre><code class="language-python">
+import multiprocessing
+import time
+import random
+
+
+def worker(number):
+    sleep = random.randrange(1, 10)
+    time.sleep(sleep)
+    print(&quot;I am Worker {}, I slept for {} seconds&quot;.format(number, sleep))
+
+
+for i in range(5):
+    t = multiprocessing.Process(target=worker, args=(i,))
+    t.start()
+
+print(&quot;All Processes are queued, let's see when they finish!&quot;)
+</code></pre>
+
+<p>So what&rsquo;s changed? I just imported the <code>multiprocessing</code> module instead of <code>threading</code>. And then instead of <code>Thread</code>, I used
+<code>Process</code>. That&rsquo;s it, really! Now instead of multi threading, we are using multiple processes which are running on different core
+of your CPU (assuming you have multiple cores).</p>
+
+<p>With the <code>Pool</code> class, we can also distribute one function execution across multiple processes for different input values. If we
+take the example from the official docs:</p>
+
+<pre><code class="language-python">from multiprocessing import Pool
+
+def f(x):
+    return x*x
+
+if __name__ == '__main__':
+    p = Pool(5)
+    print(p.map(f, [1, 2, 3]))
+
+</code></pre>
+
+<p>Here, instead of iterating over the list of values and calling <code>f</code> on them one by one, we are actually running the function on
+different processes. One process executes <code>f(1)</code>, another runs <code>f(2)</code> and another runs <code>f(3)</code>. Finally the results are again
+aggregated in a list. This would allow us to break down heavy computations into smaller parts and run them in parallel for faster
+calculation.</p>
+
+<p><strong>Further Reading:</strong></p>
+
+<ul>
+<li><a href="https://pymotw.com/3/multiprocessing/index.html">https://pymotw.com/3/multiprocessing/index.html</a></li>
+</ul>
+
+<h4 id="the-concurrent-futures-module">The <code>concurrent.futures</code> module</h4>
+
+<p>The <code>concurrent.futures</code> module packs some really great stuff for writing async codes easily. My favorites are the <code>ThreadPoolExecutor</code>
+and the <code>ProcessPoolExecutor</code>. These executors maintain a pool of threads or processes. We submit our tasks to the pool and it
+runs the tasks in available thread/process. A <code>Future</code> object is returned which we can use to query and get the result when the task
+has completed.</p>
+
+<p>Here&rsquo;s an example of <code>ThreadPoolExecutor</code>:</p>
+
+<pre><code class="language-python">from concurrent.futures import ThreadPoolExecutor
+from time import sleep
+ 
+def return_after_5_secs(message):
+    sleep(5)
+    return message
+ 
+pool = ThreadPoolExecutor(3)
+ 
+future = pool.submit(return_after_5_secs, (&quot;hello&quot;))
+print(future.done())
+sleep(5)
+print(future.done())
+print(future.result())
+</code></pre>
+
+<p>I have a blog post on the <code>concurrent.futures</code> module here: <a href="http://masnun.com/2016/03/29/python-a-quick-introduction-to-the-concurrent-futures-module.html">http://masnun.com/2016/03/29/python-a-quick-introduction-to-the-concurrent-futures-module.html</a>
+which might be helpful for exploring the module deeper.</p>
+
+<p><strong>Further Reading:</strong></p>
+
+<ul>
+<li><a href="https://pymotw.com/3/concurrent.futures/">https://pymotw.com/3/concurrent.futures/</a></li>
+</ul>
+
+<p><br/></p>
+
+<h3 id="asyncio-why-what-and-how">Asyncio - Why, What and How?</h3>
+
+<p>You probably have the question many people in the Python community have - What does asyncio bring new to the table? Why did we need
+one more way to do async I/O? Did we not have threads and processes already? Let&rsquo;s see!</p>
+
+<h4 id="why-do-we-need-asyncio">Why do we need asyncio?</h4>
+
+<p>Processes are costly to spawn. So for I/O, Threads are chosen largely. We know that I/O depends on external stuff - slow disks or
+nasty network lags make I/O often unpredictable. Now, let&rsquo;s assume that we are using threads for I/O bound operations. 3 threads
+are doing different I/O tasks. The interpreter would need to switch between the concurrent threads and give each of them some time
+in turns. Let&rsquo;s call the threads - <code>T1</code>, <code>T2</code> and <code>T3</code>. The three threads have started their I/O operation. <code>T3</code> completes it first.
+<code>T2</code> and <code>T1</code> are still waiting for I/O.  The Python interpreter switches to <code>T1</code> but it&rsquo;s still waiting. Fine, so it moves to <code>T2</code>,
+it&rsquo;s still waiting and then it moves to <code>T3</code> which is ready and executes the code. Do you see the problem here?</p>
+
+<p><code>T3</code> was ready but the interpreter switched between <code>T2</code> and <code>T1</code> first - that incurred switching costs  which we could have avoided
+ if the interpreter first moved to <code>T3</code>, right?</p>
+
+<h4 id="what-is-asyncio">What is asyncio?</h4>
+
+<p>Asyncio provides us an event loop along with other good stuff. The event loop tracks different I/O events and switches to
+ tasks which are  ready and pauses the ones which are waiting on I/O. Thus we don&rsquo;t waste time on tasks which are not ready to run
+ right now.</p>
+
+<p>The idea is very simple. There&rsquo;s an event loop. And we have functions that run async, I/O operations. We give our functions to the
+ event loop and ask it to run those for us. The event loop gives us back a <code>Future</code> object, it&rsquo;s like a promise that we will get
+ something back in the <em>future</em>. We hold on to the promise, time to time check if it has a value (when we feel impatient) and finally
+ when the future has a value, we use it in some other operations.</p>
+
+<p>Asyncio uses generators and coroutines to pause and resume tasks. You can read these posts for more details:</p>
+
+<ul>
+<li><a href="http://masnun.com/2015/11/20/python-asyncio-future-task-and-the-event-loop.html">http://masnun.com/2015/11/20/python-asyncio-future-task-and-the-event-loop.html</a></li>
+<li><a href="http://masnun.com/2015/11/13/python-generators-coroutines-native-coroutines-and-async-await.html">http://masnun.com/2015/11/13/python-generators-coroutines-native-coroutines-and-async-await.html</a></li>
+</ul>
+
+<h4 id="how-do-we-use-asyncio">How do we use asyncio?</h4>
+
+<p>Before we beging, let&rsquo;s see example codes:</p>
+
+<pre><code class="language-python">import asyncio
+import datetime
+import random
+
+
+async def my_sleep_func():
+    await asyncio.sleep(random.randint(0, 5))
+
+
+async def display_date(num, loop):
+    end_time = loop.time() + 50.0
+    while True:
+        print(&quot;Loop: {} Time: {}&quot;.format(num, datetime.datetime.now()))
+        if (loop.time() + 1.0) &gt;= end_time:
+            break
+        await my_sleep_func()
+
+
+loop = asyncio.get_event_loop()
+
+asyncio.ensure_future(display_date(1, loop))
+asyncio.ensure_future(display_date(2, loop))
+
+loop.run_forever()
+
+</code></pre>
+
+<p>Please note that the <code>async/await</code> syntax is Python 3.5+ only. if we walk through the codes:</p>
+
+<ul>
+<li>We have an async function <code>display_date</code> which takes a number (as an identifier) and the event loop as parameters.</li>
+<li>The function has an infinite loop that breaks after 50 secs. But during this 50 sec period, it repeatedly prints out the time
+and takes a nap. The <code>await</code> function can wait on other async functions (coroutines) to complete.</li>
+<li>We pass the function to event loop (using the <code>ensure_future</code> method).</li>
+<li>We start running the event loop.</li>
+</ul>
+
+<p>Whenever the <code>await</code> call is made, asyncio understands that the function is probably going to need some time. So it pauses the execution,
+starts monitoring any I/O event related to it and allows tasks to run. When asyncio notices that paused function&rsquo;s I/O is ready, it
+resumes the function.</p>
+
+<h3 id="making-the-right-choice">Making the Right Choice</h3>
+
+<p>We have walked through the most popular forms of concurrency. But the question remains - when should choose which one?
+It really depends on the use cases. From my experience (and reading), I tend to follow this pseudo code:</p>
+
+<pre><code class="language-python">if io_bound:
+    if io_very_slow:
+        print(&quot;Use Asyncio&quot;)
+    else:
+       print(&quot;Use Threads&quot;)
+else:
+    print(&quot;Multi Processing&quot;)
+
+</code></pre>
+
+<ul>
+<li>CPU Bound =&gt; Multi Processing</li>
+<li>I/O Bound, Fast I/O, Limited Number of Connections =&gt; Multi Threading</li>
+<li>I/O Bound, Slow I/O, Many connections =&gt; Asyncio</li>
+</ul>
+
+</div>
+
+        <hr/>
+        <div>
+            
+            
+            <link href="//cdn-images.mailchimp.com/embedcode/horizontal-slim-10_7.css" rel="stylesheet" type="text/css">
+            <style type="text/css">
+                #mc_embed_signup{background:#fff; clear:left; font:14px Helvetica,Arial,sans-serif; width:100%;}
+                 
+            </style>
+            <div id="mc_embed_signup">
+            <form action="//rocks.us6.list-manage.com/subscribe/post?u=9629b854ab5af8778b9853891&amp;id=ad5968cb3a" method="post" id="mc-embedded-subscribe-form" name="mc-embedded-subscribe-form" class="validate" target="_blank" novalidate>
+                <div id="mc_embed_signup_scroll">
+                <label for="mce-EMAIL">Subscribe via Email</label>
+                <input type="email" value="" name="EMAIL" class="email" id="mce-EMAIL" placeholder="email address" required>
+                
+                <div style="position: absolute; left: -5000px;" aria-hidden="true"><input type="text" name="b_9629b854ab5af8778b9853891_ad5968cb3a" tabindex="-1" value=""></div>
+                <div class="clear"><input type="submit" value="Subscribe" name="subscribe" id="mc-embedded-subscribe" class="button"></div>
+                </div>
+            </form>
+            </div>
+
+            
+        
+        </div>
+        <hr/>
+
+        <footer class="post-footer clearfix">
+    
+        <p class="post-tags">
+            <span>Tagged:</span>
+            
+                 <a href="/tags/python/">Python</a>
+            
+        </p>
+    
+
+    <div class="share">
+        <a class="icon-twitter" href="http://twitter.com/share?text=Async%20Python%3a%20%20The%20Different%20Forms%20of%20Concurrency&url=http%3a%2f%2fmasnun.rocks%2f2016%2f10%2f06%2fasync-python-the-different-forms-of-concurrency%2f"
+            onclick="window.open(this.href, 'twitter-share', 'width=550,height=235');return false;">
+            <i class="fa fa-twitter"></i>
+            <span class="hidden">Twitter</span>
+        </a>
+
+        <a class="icon-facebook" href="https://www.facebook.com/sharer/sharer.php?u=http%3a%2f%2fmasnun.rocks%2f2016%2f10%2f06%2fasync-python-the-different-forms-of-concurrency%2f"
+            onclick="window.open(this.href, 'facebook-share','width=580,height=296');return false;">
+            <i class="fa fa-facebook"></i>
+            <span class="hidden">Facebook</span>
+        </a>
+
+        <a class="icon-google-plus" href="https://plus.google.com/share?url=http%3a%2f%2fmasnun.rocks%2f2016%2f10%2f06%2fasync-python-the-different-forms-of-concurrency%2f"
+           onclick="window.open(this.href, 'google-plus-share', 'width=490,height=530');return false;">
+           <i class="fa fa-google-plus"></i>
+            <span class="hidden">Google+</span>
+        </a>
+    </div>
+</footer>
+
+        <br/>
+
+        
+    <div class="comments">
+        <div id="disqus_thread"></div>
+<script type="text/javascript">
+    var disqus_shortname = 'masnun-rocks';
+    var disqus_identifier = 'http:\/\/masnun.rocks\/2016\/10\/06\/async-python-the-different-forms-of-concurrency\/';
+    var disqus_title = 'Async Python:  The Different Forms of Concurrency';
+    var disqus_url = 'http:\/\/masnun.rocks\/2016\/10\/06\/async-python-the-different-forms-of-concurrency\/';
+
+    (function() {
+        var dsq = document.createElement('script'); dsq.type = 'text/javascript'; dsq.async = true;
+        dsq.src = '//' + disqus_shortname + '.disqus.com/embed.js';
+        (document.getElementsByTagName('head')[0] || document.getElementsByTagName('body')[0]).appendChild(dsq);
+    })();
+</script>
+<noscript>Please enable JavaScript to view the <a href="http://disqus.com/?ref_noscript">comments powered by Disqus.</a></noscript>
+<a href="http://disqus.com" class="dsq-brlink">comments powered by <span class="logo-disqus">Disqus</span></a>
+    </div>
+
+
+    </article>
+
+    
+</div>
+
+            </div>
+        </div>
+
+        <footer class="footer">
+            <div class="container">
+                <div class="site-title-wrapper">
+                    <h1 class="site-title">
+                        <a title="masnun.rocks()" href="http://masnun.rocks/">masnun.rocks()</a>
+                    </h1>
+                    <a class="button-square button-jump-top js-jump-top" href="#">
+                        <i class="fa fa-angle-up"></i>
+                    </a>
+                </div>
+
+                <p class="footer-copyright">
+                    <span>&copy; 2017 / Powered by <a href="http://gohugo.io/">Hugo</a></span>
+                </p>
+                <p class="footer-copyright">
+                    <span><a href="https://github.com/roryg/ghostwriter">Ghostwriter theme</a> By <a href="http://jollygoodthemes.com">JollyGoodThemes</a></span>
+                    <span>/ <a href="https://github.com/jbub/ghostwriter">Ported</a> to Hugo By <a href="https://github.com/jbub">jbub</a></span>
+                </p>
+            </div>
+        </footer>
+
+        <script src="http://masnun.rocks/js/jquery-1.11.3.min.js"></script>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/8.5/highlight.min.js"></script>
+        <script src="http://masnun.rocks/js/jquery.fitvids.js"></script>
+        <script src="http://masnun.rocks/js/scripts.js"></script>
+    </body>
+</html>
+
