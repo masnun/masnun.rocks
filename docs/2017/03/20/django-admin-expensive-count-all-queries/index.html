@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <meta charset="utf-8">
+        <meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1">
+        <title>Django Admin: Expensive COUNT(*) Queries &middot; Abu Ashraf Masnun</title>
+        <meta name="description" content="Whovian, *nixer, business graduate, passionate software craftsman">
+        <meta name="HandheldFriendly" content="True">
+        <meta name="MobileOptimized" content="320">
+        <meta name="generator" content="Hugo 0.17" />
+        <meta name="robots" content="index,follow">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <link rel="stylesheet" href="http://masnun.rocks/css/normalize.css">
+        <link rel="stylesheet" href="http://masnun.rocks/css/highlight.css">
+        <link rel="stylesheet" href="http://masnun.rocks/css/style.css">
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Open+Sans:300italic,400italic,600italic,700italic,400,600,700,300&subset=latin,cyrillic-ext,latin-ext,cyrillic">
+        <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/font-awesome/4.6.3/css/font-awesome.min.css">
+    </head>
+    <body>
+        
+<script>
+(function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
+(i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
+m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
+})(window,document,'script','//www.google-analytics.com/analytics.js','ga');
+
+ga('create', 'UA-84715154-1', 'auto');
+ga('send', 'pageview');
+</script>
+
+
+        <div id="wrapper">
+            <header class="site-header">
+                <div class="container">
+                    <div class="site-title-wrapper">
+                        
+                            <h1 class="site-title">
+                                <a title="masnun.rocks()" href="http://masnun.rocks/">masnun.rocks()</a>
+                            </h1>
+                        
+                        <a class="button-square" href="http://masnun.rocks/index.xml"><i class="fa fa-rss"></i></a>
+                        
+                            <a class="button-square button-social hint--top" data-hint="Twitter" title="Twitter" href="https://twitter.com/masnun">
+                                <i class="fa fa-twitter"></i>
+                            </a>
+                        
+                        
+                        
+                            <a class="button-square button-social hint--top" data-hint="Github" title="Github" href="https://github.com/masnun">
+                                <i class="fa fa-github-alt"></i>
+                            </a>
+                        
+                        
+                            <a class="button-square button-social hint--top" data-hint="Stack Overflow" title="Stack Overflow" href="http://stackoverflow.com/users/301107/masnun">
+                                <i class="fa fa-stack-overflow"></i>
+                            </a>
+                        
+                        
+                        
+                    </div>
+
+                    <ul class="site-nav">
+                        
+    <li class="site-nav-item">
+        <a title="Home" href="/">Home</a>
+    </li>
+
+    <li class="site-nav-item">
+        <a title="Contact" href="/contact/">Contact</a>
+    </li>
+
+    <li class="site-nav-item">
+        <a title="About" href="/about/">About</a>
+    </li>
+
+                    </ul>
+                </div>
+            </header>
+
+            <div id="container">
+
+
+<div class="container">
+    <article class="post-container">
+        <header class="post-header">
+    <h1 class="post-title">Django Admin: Expensive COUNT(*) Queries</h1>
+    
+</header>
+
+        <div class="post-content clearfix">
+    
+
+    
+
+<p>If you are a Django developer, it is very likely that you use the Django Admin regularly. And if you have maintained a website with a huge amount of data, you probably already know that Django Admin can become very slow when the database table gets so large. If you log the SQL queries (either using Django logging or using Django Debug Toolbar), you would notice a very expensive
+SQL query, something like this:</p>
+
+<pre><code class="language-SQL">SELECT COUNT(*) AS &quot;__count&quot; FROM &quot;table_name&quot;
+</code></pre>
+
+<p>In the default settings, you will actually notice this query twice. If you use Django Debug Toolbar, it will tell you that the query was duplicated 2 times.</p>
+
+<h3 id="issue-1">Issue - 1</h3>
+
+<p>By default <code>ModelAdmin</code> has <code>show_full_result_count = True</code> which shows the full result count in the admin interface. This is the source of one of the <code>count(*)</code> queries.</p>
+
+<p>To fix that, we just need to set this on our <code>ModelAdmin</code>:</p>
+
+<pre><code class="language-Python">show_full_result_count = False
+</code></pre>
+
+<h3 id="issue-2">Issue - 2</h3>
+
+<p>Even after switching <code>show_full_result_count</code> off, we are still noticing a <code>count(*)</code> query in the log. It&rsquo;s because the Django Paginator does a count itself.</p>
+
+<p>The solution is to somehow bypass the expensive query while still returning a number so the pagination works as expected. We can cache the count value or even run raw SQL query find an approximate value through a rather inexpensive lookup somewhere else.</p>
+
+<p>Here&rsquo;s a quick example of a paginator that runs the expensive query once and then caches the results:</p>
+
+<pre><code class="language-Python">from django.core.paginator import Paginator
+from django.core.cache import cache
+
+# Modified version of a GIST I found in a SO thread
+class CachingPaginator(Paginator):
+    def _get_count(self):
+
+        if not hasattr(self, &quot;_count&quot;):
+            self._count = None
+
+        if self._count is None:
+            try:
+                key = &quot;adm:{0}:count&quot;.format(hash(self.object_list.query.__str__()))
+                self._count = cache.get(key, -1)
+                if self._count == -1:
+                    self._count = super().count
+                    cache.set(key, self._count, 3600)
+
+            except:
+                self._count = len(self.object_list)
+        return self._count
+
+    count = property(_get_count)
+
+    
+</code></pre>
+
+<p>Now on our <code>ModelAdmin</code> we just need to use this paginator.</p>
+
+<pre><code class="language-Python">paginator = CachingPaginator
+</code></pre>
+
+<p>Once we have done that, it will be slow when we first time load the page and it will be faster afterwards. We can also fetch and cache this value from time to time. This solution might not get us the exact count and thus mess up pagination sometimes but in most cases that would not be much
+of a problem.</p>
+
+</div>
+
+        <hr/>
+        <div>
+            
+            
+            <link href="//cdn-images.mailchimp.com/embedcode/horizontal-slim-10_7.css" rel="stylesheet" type="text/css">
+            <style type="text/css">
+                #mc_embed_signup{background:#fff; clear:left; font:14px Helvetica,Arial,sans-serif; width:100%;}
+                 
+            </style>
+            <div id="mc_embed_signup">
+            <form action="//rocks.us6.list-manage.com/subscribe/post?u=9629b854ab5af8778b9853891&amp;id=ad5968cb3a" method="post" id="mc-embedded-subscribe-form" name="mc-embedded-subscribe-form" class="validate" target="_blank" novalidate>
+                <div id="mc_embed_signup_scroll">
+                <label for="mce-EMAIL">Subscribe via Email</label>
+                <input type="email" value="" name="EMAIL" class="email" id="mce-EMAIL" placeholder="email address" required>
+                
+                <div style="position: absolute; left: -5000px;" aria-hidden="true"><input type="text" name="b_9629b854ab5af8778b9853891_ad5968cb3a" tabindex="-1" value=""></div>
+                <div class="clear"><input type="submit" value="Subscribe" name="subscribe" id="mc-embedded-subscribe" class="button"></div>
+                </div>
+            </form>
+            </div>
+
+            
+        
+        </div>
+        <hr/>
+
+        <footer class="post-footer clearfix">
+    
+        <p class="post-tags">
+            <span>Tagged:</span>
+            
+                 <a href="/tags/python/">Python</a>
+            
+                 <a href="/tags/django/">Django</a>
+            
+        </p>
+    
+
+    <div class="share">
+        <a class="icon-twitter" href="http://twitter.com/share?text=Django%20Admin%3a%20Expensive%20COUNT%28%2a%29%20Queries&url=http%3a%2f%2fmasnun.rocks%2f2017%2f03%2f20%2fdjango-admin-expensive-count-all-queries%2f"
+            onclick="window.open(this.href, 'twitter-share', 'width=550,height=235');return false;">
+            <i class="fa fa-twitter"></i>
+            <span class="hidden">Twitter</span>
+        </a>
+
+        <a class="icon-facebook" href="https://www.facebook.com/sharer/sharer.php?u=http%3a%2f%2fmasnun.rocks%2f2017%2f03%2f20%2fdjango-admin-expensive-count-all-queries%2f"
+            onclick="window.open(this.href, 'facebook-share','width=580,height=296');return false;">
+            <i class="fa fa-facebook"></i>
+            <span class="hidden">Facebook</span>
+        </a>
+
+        <a class="icon-google-plus" href="https://plus.google.com/share?url=http%3a%2f%2fmasnun.rocks%2f2017%2f03%2f20%2fdjango-admin-expensive-count-all-queries%2f"
+           onclick="window.open(this.href, 'google-plus-share', 'width=490,height=530');return false;">
+           <i class="fa fa-google-plus"></i>
+            <span class="hidden">Google+</span>
+        </a>
+    </div>
+</footer>
+
+        <br/>
+
+        
+    <div class="comments">
+        <div id="disqus_thread"></div>
+<script type="text/javascript">
+    var disqus_shortname = 'masnun-rocks';
+    var disqus_identifier = 'http:\/\/masnun.rocks\/2017\/03\/20\/django-admin-expensive-count-all-queries\/';
+    var disqus_title = 'Django Admin: Expensive COUNT(*) Queries';
+    var disqus_url = 'http:\/\/masnun.rocks\/2017\/03\/20\/django-admin-expensive-count-all-queries\/';
+
+    (function() {
+        var dsq = document.createElement('script'); dsq.type = 'text/javascript'; dsq.async = true;
+        dsq.src = '//' + disqus_shortname + '.disqus.com/embed.js';
+        (document.getElementsByTagName('head')[0] || document.getElementsByTagName('body')[0]).appendChild(dsq);
+    })();
+</script>
+<noscript>Please enable JavaScript to view the <a href="http://disqus.com/?ref_noscript">comments powered by Disqus.</a></noscript>
+<a href="http://disqus.com" class="dsq-brlink">comments powered by <span class="logo-disqus">Disqus</span></a>
+    </div>
+
+
+    </article>
+
+    
+</div>
+
+            </div>
+        </div>
+
+        <footer class="footer">
+            <div class="container">
+                <div class="site-title-wrapper">
+                    <h1 class="site-title">
+                        <a title="masnun.rocks()" href="http://masnun.rocks/">masnun.rocks()</a>
+                    </h1>
+                    <a class="button-square button-jump-top js-jump-top" href="#">
+                        <i class="fa fa-angle-up"></i>
+                    </a>
+                </div>
+
+                <p class="footer-copyright">
+                    <span>&copy; 2017 / Powered by <a href="http://gohugo.io/">Hugo</a></span>
+                </p>
+                <p class="footer-copyright">
+                    <span><a href="https://github.com/roryg/ghostwriter">Ghostwriter theme</a> By <a href="http://jollygoodthemes.com">JollyGoodThemes</a></span>
+                    <span>/ <a href="https://github.com/jbub/ghostwriter">Ported</a> to Hugo By <a href="https://github.com/jbub">jbub</a></span>
+                </p>
+            </div>
+        </footer>
+
+        <script src="http://masnun.rocks/js/jquery-1.11.3.min.js"></script>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/8.5/highlight.min.js"></script>
+        <script src="http://masnun.rocks/js/jquery.fitvids.js"></script>
+        <script src="http://masnun.rocks/js/scripts.js"></script>
+    </body>
+</html>
+

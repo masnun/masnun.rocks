@@ -273,6 +273,10 @@ table {
     margin: 40px auto 0;
     width: 100px; }
 
+.post-content {
+  text-align: justify;
+  text-justify: inter-word;
+}
 .post-content a:hover {
   border-bottom: 1px dotted #F03838;
   padding: 0 0 2px; }

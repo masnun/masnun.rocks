@@ -6,8 +6,78 @@
     <description>Recent content in Post-rsses on masnun.rocks()</description>
     <generator>Hugo -- gohugo.io</generator>
     <language>en-us</language>
-    <lastBuildDate>Sat, 18 Feb 2017 12:12:47 +0600</lastBuildDate>
+    <lastBuildDate>Mon, 20 Mar 2017 22:43:59 +0600</lastBuildDate>
     <atom:link href="http://masnun.rocks/post/index.xml" rel="self" type="application/rss+xml" />
+    
+    <item>
+      <title>Django Admin: Expensive COUNT(*) Queries</title>
+      <link>http://masnun.rocks/2017/03/20/django-admin-expensive-count-all-queries/</link>
+      <pubDate>Mon, 20 Mar 2017 22:43:59 +0600</pubDate>
+      
+      <guid>http://masnun.rocks/2017/03/20/django-admin-expensive-count-all-queries/</guid>
+      <description>
+
+&lt;p&gt;If you are a Django developer, it is very likely that you use the Django Admin regularly. And if you have maintained a website with a huge amount of data, you probably already know that Django Admin can become very slow when the database table gets so large. If you log the SQL queries (either using Django logging or using Django Debug Toolbar), you would notice a very expensive
+SQL query, something like this:&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class=&#34;language-SQL&#34;&gt;SELECT COUNT(*) AS &amp;quot;__count&amp;quot; FROM &amp;quot;table_name&amp;quot;
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;In the default settings, you will actually notice this query twice. If you use Django Debug Toolbar, it will tell you that the query was duplicated 2 times.&lt;/p&gt;
+
+&lt;h3 id=&#34;issue-1&#34;&gt;Issue - 1&lt;/h3&gt;
+
+&lt;p&gt;By default &lt;code&gt;ModelAdmin&lt;/code&gt; has &lt;code&gt;show_full_result_count = True&lt;/code&gt; which shows the full result count in the admin interface. This is the source of one of the &lt;code&gt;count(*)&lt;/code&gt; queries.&lt;/p&gt;
+
+&lt;p&gt;To fix that, we just need to set this on our &lt;code&gt;ModelAdmin&lt;/code&gt;:&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class=&#34;language-Python&#34;&gt;show_full_result_count = False
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;h3 id=&#34;issue-2&#34;&gt;Issue - 2&lt;/h3&gt;
+
+&lt;p&gt;Even after switching &lt;code&gt;show_full_result_count&lt;/code&gt; off, we are still noticing a &lt;code&gt;count(*)&lt;/code&gt; query in the log. It&amp;rsquo;s because the Django Paginator does a count itself.&lt;/p&gt;
+
+&lt;p&gt;The solution is to somehow bypass the expensive query while still returning a number so the pagination works as expected. We can cache the count value or even run raw SQL query find an approximate value through a rather inexpensive lookup somewhere else.&lt;/p&gt;
+
+&lt;p&gt;Here&amp;rsquo;s a quick example of a paginator that runs the expensive query once and then caches the results:&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class=&#34;language-Python&#34;&gt;from django.core.paginator import Paginator
+from django.core.cache import cache
+
+# Modified version of a GIST I found in a SO thread
+class CachingPaginator(Paginator):
+    def _get_count(self):
+
+        if not hasattr(self, &amp;quot;_count&amp;quot;):
+            self._count = None
+
+        if self._count is None:
+            try:
+                key = &amp;quot;adm:{0}:count&amp;quot;.format(hash(self.object_list.query.__str__()))
+                self._count = cache.get(key, -1)
+                if self._count == -1:
+                    self._count = super().count
+                    cache.set(key, self._count, 3600)
+
+            except:
+                self._count = len(self.object_list)
+        return self._count
+
+    count = property(_get_count)
+
+    
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;Now on our &lt;code&gt;ModelAdmin&lt;/code&gt; we just need to use this paginator.&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class=&#34;language-Python&#34;&gt;paginator = CachingPaginator
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;Once we have done that, it will be slow when we first time load the page and it will be faster afterwards. We can also fetch and cache this value from time to time. This solution might not get us the exact count and thus mess up pagination sometimes but in most cases that would not be much
+of a problem.&lt;/p&gt;
+</description>
+    </item>
     
     <item>
       <title>Learning Elixir: First Impressions</title>
