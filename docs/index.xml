@@ -6,8 +6,90 @@
     <description>Recent content on masnun.rocks()</description>
     <generator>Hugo -- gohugo.io</generator>
     <language>en-us</language>
-    <lastBuildDate>Mon, 20 Mar 2017 22:43:59 +0600</lastBuildDate>
+    <lastBuildDate>Mon, 27 Mar 2017 12:49:01 +0600</lastBuildDate>
     <atom:link href="http://masnun.rocks/index.xml" rel="self" type="application/rss+xml" />
+    
+    <item>
+      <title>Django REST Framework: Using the request object</title>
+      <link>http://masnun.rocks/2017/03/27/django-rest-framework-using-request-object/</link>
+      <pubDate>Mon, 27 Mar 2017 12:49:01 +0600</pubDate>
+      
+      <guid>http://masnun.rocks/2017/03/27/django-rest-framework-using-request-object/</guid>
+      <description>
+
+&lt;p&gt;While working with &lt;a href=&#34;http://www.django-rest-framework.org/&#34;&gt;Django REST Framework&lt;/a&gt; aka DRF, we often wonder how to customize our response based on request parameters. May be we want to check something against the logged in user (&lt;code&gt;request.user&lt;/code&gt;) ? Or may be we want to modify part of our response based on a certain request parameter? How do we do that? We will discuss a few use cases below.&lt;/p&gt;
+
+&lt;h2 id=&#34;modelviewset-filtering-based-on-request&#34;&gt;ModelViewSet - Filtering based on &lt;code&gt;request&lt;/code&gt;&lt;/h2&gt;
+
+&lt;p&gt;This is very often required while using &lt;code&gt;ModelViewSet&lt;/code&gt;s. We have many &lt;code&gt;Item&lt;/code&gt;s in our database. But when listing them, we only want to display the items belonging to the current logged in user.&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class=&#34;language-python&#34;&gt;from rest_framework.permissions import IsAuthenticated
+
+class ItemViewSet(ModelViewSet):
+    permission_classes = (IsAuthenticated,)
+    serializer_class = ItemSerializer
+
+    def get_queryset(self):
+        queryset = Item.objects.all().filter(user=request.user)
+
+        another_param = self.request.GET.get(&#39;another_param&#39;)
+        if another_param:
+            queryset = queryset.filter(another_field=another_param)
+
+        return queryset
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;If you are using the awesome &lt;code&gt;ModelViewSet&lt;/code&gt;, you can override the &lt;code&gt;get_queryset&lt;/code&gt; method. Inside it, you can access the &lt;code&gt;request&lt;/code&gt; object as &lt;code&gt;self.request&lt;/code&gt;. In the above example, we are only listing the items which has our current user set as their &lt;code&gt;user&lt;/code&gt; field. At the same time, we are also filtering the queryset based on another parameter. Basically you have the queryset and &lt;code&gt;self.request&lt;/code&gt; available to you, feel free to use your imagination to craft all the queries you need!&lt;/p&gt;
+
+&lt;h2 id=&#34;serializers-modifying-response-based-on-request&#34;&gt;Serializers - Modifying Response based on &lt;code&gt;request&lt;/code&gt;&lt;/h2&gt;
+
+&lt;p&gt;What if we don&amp;rsquo;t want to display &lt;code&gt;item_count&lt;/code&gt; for the users by default? What if we only want to display that field when a request parameter, &lt;code&gt;show_count&lt;/code&gt; is set? We can override the serializer to do that.&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class=&#34;language-python&#34;&gt;class UserSerializer(ModelSerializer):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+        context = kwargs.get(&#39;context&#39;, None)
+        if context:
+            request = kwargs[&#39;context&#39;][&#39;request&#39;]
+
+            show_count = request.GET.get(&#39;show_count&#39;)
+            if show_count:
+                self.fields[&#39;item_count&#39;] = IntegerField(source=&amp;quot;item_count&amp;quot;)
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;When Serializers are constructed by DRF, it gets the &lt;code&gt;request&lt;/code&gt; in the &lt;code&gt;context&lt;/code&gt;. So we should always check if it exists and use it as needed. We can override the serializer fields by accessing &lt;code&gt;self.fields&lt;/code&gt;.&lt;/p&gt;
+
+&lt;p&gt;Please note: The &lt;code&gt;request&lt;/code&gt; object will be passed only if DRF constructs the serializer for you, for example when you just pass the &lt;code&gt;serializer_class&lt;/code&gt; to a &lt;code&gt;ModelViewSet&lt;/code&gt;. But if you are using the Serializer in your custom views, please do remember to pass the request manually, otherwise it won&amp;rsquo;t work.&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class=&#34;language-python&#34;&gt;item_serializer = ItemSerializer(item, context={&amp;quot;request&amp;quot;: request})
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;In our case we have just used &lt;code&gt;IntegerField&lt;/code&gt;. You can of course use another serializer to embed the full data of a related field.&lt;/p&gt;
+
+&lt;h2 id=&#34;using-request-in-serializer-fields&#34;&gt;Using &lt;code&gt;request&lt;/code&gt; in Serializer Fields&lt;/h2&gt;
+
+&lt;p&gt;Serializer fields have &lt;code&gt;context&lt;/code&gt; too!&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class=&#34;language-python&#34;&gt;class ShortURLField(ReadOnlyField):
+    def to_representation(self, value):
+        return self.context[&#39;request&#39;].build_absolute_uri(value)
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;and here&amp;rsquo;s the serializer:&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class=&#34;language-py&#34;&gt;class URLSerializer(ModelSerializer):
+    short_url = ShortURLField()
+
+    class Meta:
+        model = URL
+        fields = &amp;quot;__all__&amp;quot;
+
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;In the &lt;code&gt;URL&lt;/code&gt; model, there is a method named &lt;code&gt;short_url&lt;/code&gt; that returns a slug for that url. In our custom &lt;code&gt;ShortURLField&lt;/code&gt;, we have customized the &lt;code&gt;to_representation&lt;/code&gt; method to use the &lt;code&gt;build_absolute_uri(value)&lt;/code&gt; method on current request for creating the full url from the slug.&lt;/p&gt;
+</description>
+    </item>
     
     <item>
       <title>Django Admin: Expensive COUNT(*) Queries</title>
@@ -2390,24 +2472,6 @@ I of course use Node.js as a part of my front end tooling but I also love buildi
 
 &lt;li&gt;&lt;a href=&#34;http://nodeschool.io/khulna/&#34; target=&#34;_blank&#34;&gt;NodeSchool Khulna&lt;/a&gt;&lt;/li&gt;
 &lt;/ul&gt;
-</description>
-    </item>
-    
-    <item>
-      <title>Contact</title>
-      <link>http://masnun.rocks/contact/</link>
-      <pubDate>Sun, 25 Sep 2016 11:20:51 +0600</pubDate>
-      
-      <guid>http://masnun.rocks/contact/</guid>
-      <description>&lt;hr/&gt;
-
-&lt;p&gt;&lt;center&gt;&lt;b&gt;I usually prefer that you email me or leave me a message on Facebook.&lt;/b&gt;&lt;/center&gt;
-&lt;hr/&gt;&lt;/p&gt;
-
-&lt;p&gt;&lt;strong&gt;Email:&lt;/strong&gt; masnun [at] gmail.com &lt;br/&gt;
-&lt;strong&gt;Skype:&lt;/strong&gt; masnun_ &lt;br/&gt;
-&lt;strong&gt;Phone:&lt;/strong&gt; +880 1711 960803 &lt;small&gt;(I am in GMT +6, please call responsibly)&lt;/small&gt; &lt;br/&gt;
-&lt;strong&gt;Facebook:&lt;/strong&gt; &lt;a href=&#34;http://facebook.com/masnun&#34;&gt;http://facebook.com/masnun&lt;/a&gt; &lt;br/&gt;&lt;/p&gt;
 </description>
     </item>
     

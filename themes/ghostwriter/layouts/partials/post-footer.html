@@ -1,9 +1,8 @@
 <footer class="post-footer clearfix">
     {{ if .Params.tags }}
         <p class="post-tags">
-            <span>Tagged:</span>
             {{ range .Params.tags }}
-                 <a href="/tags/{{ . | urlize }}/">{{ . }}</a>
+                 <span class="tag"><a href="/tags/{{ . | urlize }}/">{{ . }}</a></span>
             {{ end }}
         </p>
     {{ end}}

@@ -3,4 +3,9 @@
     {{ if .Description }}
         <p class="post-description">{{ .Description }}</p>
     {{ end }}
+
+    <br/>
+    {{ range .Params.tags }}
+        <span class="tag"><a href="/tags/{{ . | urlize }}/">{{ . }}</a></span>
+    {{ end }}
 </header>

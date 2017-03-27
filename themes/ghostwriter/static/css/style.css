@@ -637,3 +637,12 @@ table {
     padding: 0 10px; } }
 
 /*# sourceMappingURL=style.css.map */
+
+
+span.tag {
+  padding: 5px;
+  font-size: 100%;
+  color: #F03838;
+  background-color: #F1F0EA;
+  text-transform: capitalize;
+  border-radius: 5px; }

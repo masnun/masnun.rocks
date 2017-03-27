@@ -3,7 +3,7 @@
     <head>
         <meta charset="utf-8">
         <meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1">
-        <title>Xiaomi Phones: Fixing Notification Problems &middot; Abu Ashraf Masnun</title>
+        <title>Django REST Framework: Using the request object &middot; Abu Ashraf Masnun</title>
         <meta name="description" content="Whovian, *nixer, business graduate, passionate software craftsman">
         <meta name="HandheldFriendly" content="True">
         <meta name="MobileOptimized" content="320">
@@ -83,10 +83,16 @@ ga('send', 'pageview');
 <div class="container">
     <article class="post-container">
         <header class="post-header">
-    <h1 class="post-title">Xiaomi Phones: Fixing Notification Problems</h1>
+    <h1 class="post-title">Django REST Framework: Using the request object</h1>
     
 
     <br/>
+    
+        <span class="tag"><a href="/tags/python/">Python</a></span>
+    
+        <span class="tag"><a href="/tags/django/">Django</a></span>
+    
+        <span class="tag"><a href="/tags/django-rest-framework/">Django REST Framework</a></span>
     
 </header>
 
@@ -95,48 +101,77 @@ ga('send', 'pageview');
 
     
 
-<p>Xiaomi Phones are pretty good. I have a Redmi Note 3 Pro and I am quite loving
-the experience. However, I did notice some of the apps were not receiving
-notifications properly. This includes the &ldquo;Inbox&rdquo; app from Google and &ldquo;Slack&rdquo;
-which I need almost all day. I was getting concerned. Luckily, after some googling
-I found several fixes on different forums. I will quickly go through them in this
-post.</p>
+<p>While working with <a href="http://www.django-rest-framework.org/">Django REST Framework</a> aka DRF, we often wonder how to customize our response based on request parameters. May be we want to check something against the logged in user (<code>request.user</code>) ? Or may be we want to modify part of our response based on a certain request parameter? How do we do that? We will discuss a few use cases below.</p>
 
-<h3 id="enable-autostart">Enable Autostart</h3>
+<h2 id="modelviewset-filtering-based-on-request">ModelViewSet - Filtering based on <code>request</code></h2>
 
-<p>Enabling autostart fixes the notification issue for most people. To make sure that
-notifications work for a particular app, enable that app to &ldquo;autostart&rdquo;. This can
-be done from the &ldquo;Permissions&rdquo; section in the &ldquo;Security&rdquo; app. Alternatively, this
-can also be accessed from the &ldquo;Permissions&rdquo; sub menu in the &ldquo;Device&rdquo; section under
-the &ldquo;Settings&rdquo; app.</p>
+<p>This is very often required while using <code>ModelViewSet</code>s. We have many <code>Item</code>s in our database. But when listing them, we only want to display the items belonging to the current logged in user.</p>
 
-<p>You can read a step by step tutorial on this here on:
-<a href="http://xiaomininja.com/2015/08/10/miui-tip-enable-autostart-to-never-miss-a-notification-again/">Xiaomi Ninja</a></p>
+<pre><code class="language-python">from rest_framework.permissions import IsAuthenticated
 
-<p>Or you can follow this video:</p>
+class ItemViewSet(ModelViewSet):
+    permission_classes = (IsAuthenticated,)
+    serializer_class = ItemSerializer
 
-<p><iframe width="640" height="360" src="https://www.youtube.com/embed/wZESXVSxByY" frameborder="0" allowfullscreen></iframe></p>
+    def get_queryset(self):
+        queryset = Item.objects.all().filter(user=request.user)
 
-<h3 id="lock-apps-to-memory">Lock Apps to Memory</h3>
+        another_param = self.request.GET.get('another_param')
+        if another_param:
+            queryset = queryset.filter(another_field=another_param)
 
-<p>This is another good solution that would work. In the task manager, slightly pull down
- an open app and you will see the &ldquo;Lock&rdquo; option. Locked apps aren&rsquo;t cleared from memory
- and they keep running. So notifications work quite fine!</p>
+        return queryset
+</code></pre>
 
-<p>Locking apps also come very handy if you don&rsquo;t want to autostart a particular app,
- you just need it open for certain period of time. For example, I can choose to have
- Slack open only during my work hours.</p>
+<p>If you are using the awesome <code>ModelViewSet</code>, you can override the <code>get_queryset</code> method. Inside it, you can access the <code>request</code> object as <code>self.request</code>. In the above example, we are only listing the items which has our current user set as their <code>user</code> field. At the same time, we are also filtering the queryset based on another parameter. Basically you have the queryset and <code>self.request</code> available to you, feel free to use your imagination to craft all the queries you need!</p>
 
-<h3 id="managing-background-activities">Managing Background Activities</h3>
+<h2 id="serializers-modifying-response-based-on-request">Serializers - Modifying Response based on <code>request</code></h2>
 
-<p>Go to: <code>Settings &gt; Battery &amp; Performance &gt; Manage Apps Battery Use</code> and <code>Choose Apps</code>.
-For the apps you want, select &ldquo;No Restrictions&rdquo;. Setting this would tell MIUI not to
-terminate/interrupt any background processes from those apps.</p>
+<p>What if we don&rsquo;t want to display <code>item_count</code> for the users by default? What if we only want to display that field when a request parameter, <code>show_count</code> is set? We can override the serializer to do that.</p>
 
-<h3 id="remember-to-restart">Remember to Restart</h3>
+<pre><code class="language-python">class UserSerializer(ModelSerializer):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
 
-<p>Once you have made the changes, restart the phone. Specially after enabling autostart.
-Now test out the notifications and see if they work fine.</p>
+        context = kwargs.get('context', None)
+        if context:
+            request = kwargs['context']['request']
+
+            show_count = request.GET.get('show_count')
+            if show_count:
+                self.fields['item_count'] = IntegerField(source=&quot;item_count&quot;)
+</code></pre>
+
+<p>When Serializers are constructed by DRF, it gets the <code>request</code> in the <code>context</code>. So we should always check if it exists and use it as needed. We can override the serializer fields by accessing <code>self.fields</code>.</p>
+
+<p>Please note: The <code>request</code> object will be passed only if DRF constructs the serializer for you, for example when you just pass the <code>serializer_class</code> to a <code>ModelViewSet</code>. But if you are using the Serializer in your custom views, please do remember to pass the request manually, otherwise it won&rsquo;t work.</p>
+
+<pre><code class="language-python">item_serializer = ItemSerializer(item, context={&quot;request&quot;: request})
+</code></pre>
+
+<p>In our case we have just used <code>IntegerField</code>. You can of course use another serializer to embed the full data of a related field.</p>
+
+<h2 id="using-request-in-serializer-fields">Using <code>request</code> in Serializer Fields</h2>
+
+<p>Serializer fields have <code>context</code> too!</p>
+
+<pre><code class="language-python">class ShortURLField(ReadOnlyField):
+    def to_representation(self, value):
+        return self.context['request'].build_absolute_uri(value)
+</code></pre>
+
+<p>and here&rsquo;s the serializer:</p>
+
+<pre><code class="language-py">class URLSerializer(ModelSerializer):
+    short_url = ShortURLField()
+
+    class Meta:
+        model = URL
+        fields = &quot;__all__&quot;
+
+</code></pre>
+
+<p>In the <code>URL</code> model, there is a method named <code>short_url</code> that returns a slug for that url. In our custom <code>ShortURLField</code>, we have customized the <code>to_representation</code> method to use the <code>build_absolute_uri(value)</code> method on current request for creating the full url from the slug.</p>
 
 </div>
 
@@ -168,21 +203,31 @@ Now test out the notifications and see if they work fine.</p>
 
         <footer class="post-footer clearfix">
     
+        <p class="post-tags">
+            
+                 <span class="tag"><a href="/tags/python/">Python</a></span>
+            
+                 <span class="tag"><a href="/tags/django/">Django</a></span>
+            
+                 <span class="tag"><a href="/tags/django-rest-framework/">Django REST Framework</a></span>
+            
+        </p>
+    
 
     <div class="share">
-        <a class="icon-twitter" href="http://twitter.com/share?text=Xiaomi%20Phones%3a%20Fixing%20Notification%20Problems&url=http%3a%2f%2fmasnun.rocks%2f2016%2f10%2f20%2fxiaomi-fix-notification-issues%2f"
+        <a class="icon-twitter" href="http://twitter.com/share?text=Django%20REST%20Framework%3a%20Using%20the%20request%20object&url=http%3a%2f%2fmasnun.rocks%2f2017%2f03%2f27%2fdjango-rest-framework-using-request-object%2f"
             onclick="window.open(this.href, 'twitter-share', 'width=550,height=235');return false;">
             <i class="fa fa-twitter"></i>
             <span class="hidden">Twitter</span>
         </a>
 
-        <a class="icon-facebook" href="https://www.facebook.com/sharer/sharer.php?u=http%3a%2f%2fmasnun.rocks%2f2016%2f10%2f20%2fxiaomi-fix-notification-issues%2f"
+        <a class="icon-facebook" href="https://www.facebook.com/sharer/sharer.php?u=http%3a%2f%2fmasnun.rocks%2f2017%2f03%2f27%2fdjango-rest-framework-using-request-object%2f"
             onclick="window.open(this.href, 'facebook-share','width=580,height=296');return false;">
             <i class="fa fa-facebook"></i>
             <span class="hidden">Facebook</span>
         </a>
 
-        <a class="icon-google-plus" href="https://plus.google.com/share?url=http%3a%2f%2fmasnun.rocks%2f2016%2f10%2f20%2fxiaomi-fix-notification-issues%2f"
+        <a class="icon-google-plus" href="https://plus.google.com/share?url=http%3a%2f%2fmasnun.rocks%2f2017%2f03%2f27%2fdjango-rest-framework-using-request-object%2f"
            onclick="window.open(this.href, 'google-plus-share', 'width=490,height=530');return false;">
            <i class="fa fa-google-plus"></i>
             <span class="hidden">Google+</span>
@@ -197,9 +242,9 @@ Now test out the notifications and see if they work fine.</p>
         <div id="disqus_thread"></div>
 <script type="text/javascript">
     var disqus_shortname = 'masnun-rocks';
-    var disqus_identifier = 'http:\/\/masnun.rocks\/2016\/10\/20\/xiaomi-fix-notification-issues\/';
-    var disqus_title = 'Xiaomi Phones: Fixing Notification Problems';
-    var disqus_url = 'http:\/\/masnun.rocks\/2016\/10\/20\/xiaomi-fix-notification-issues\/';
+    var disqus_identifier = 'http:\/\/masnun.rocks\/2017\/03\/27\/django-rest-framework-using-request-object\/';
+    var disqus_title = 'Django REST Framework: Using the request object';
+    var disqus_url = 'http:\/\/masnun.rocks\/2017\/03\/27\/django-rest-framework-using-request-object\/';
 
     (function() {
         var dsq = document.createElement('script'); dsq.type = 'text/javascript'; dsq.async = true;
