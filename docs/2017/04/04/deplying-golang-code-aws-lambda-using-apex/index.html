@@ -1,0 +1,393 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <meta charset="utf-8">
+        <meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1">
+        <title>Deplying Golang Code to AWS Lambda using Apex &middot; Abu Ashraf Masnun</title>
+        <meta name="description" content="Whovian, *nixer, business graduate, passionate software craftsman">
+        <meta name="HandheldFriendly" content="True">
+        <meta name="MobileOptimized" content="320">
+        <meta name="generator" content="Hugo 0.17" />
+        <meta name="robots" content="index,follow">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <link rel="stylesheet" href="http://masnun.rocks/css/normalize.css">
+        <link rel="stylesheet" href="http://masnun.rocks/css/highlight.css">
+        <link rel="stylesheet" href="http://masnun.rocks/css/style.css">
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Open+Sans:300italic,400italic,600italic,700italic,400,600,700,300&subset=latin,cyrillic-ext,latin-ext,cyrillic">
+        <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/font-awesome/4.6.3/css/font-awesome.min.css">
+    </head>
+    <body>
+        
+<script>
+(function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
+(i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
+m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
+})(window,document,'script','//www.google-analytics.com/analytics.js','ga');
+
+ga('create', 'UA-84715154-1', 'auto');
+ga('send', 'pageview');
+</script>
+
+
+        <div id="wrapper">
+            <header class="site-header">
+                <div class="container">
+                    <div class="site-title-wrapper">
+                        
+                            <h1 class="site-title">
+                                <a title="masnun.rocks()" href="http://masnun.rocks/">masnun.rocks()</a>
+                            </h1>
+                        
+                        <a class="button-square" href="http://masnun.rocks/index.xml"><i class="fa fa-rss"></i></a>
+                        
+                            <a class="button-square button-social hint--top" data-hint="Twitter" title="Twitter" href="https://twitter.com/masnun">
+                                <i class="fa fa-twitter"></i>
+                            </a>
+                        
+                        
+                        
+                            <a class="button-square button-social hint--top" data-hint="Github" title="Github" href="https://github.com/masnun">
+                                <i class="fa fa-github-alt"></i>
+                            </a>
+                        
+                        
+                            <a class="button-square button-social hint--top" data-hint="Stack Overflow" title="Stack Overflow" href="http://stackoverflow.com/users/301107/masnun">
+                                <i class="fa fa-stack-overflow"></i>
+                            </a>
+                        
+                        
+                        
+                    </div>
+
+                    <ul class="site-nav">
+                        
+    <li class="site-nav-item">
+        <a title="Home" href="/">Home</a>
+    </li>
+
+    <li class="site-nav-item">
+        <a title="Contact" href="/contact/">Contact</a>
+    </li>
+
+    <li class="site-nav-item">
+        <a title="About" href="/about/">About</a>
+    </li>
+
+                    </ul>
+                </div>
+            </header>
+
+            <div id="container">
+
+
+<div class="container">
+    <article class="post-container">
+        <header class="post-header">
+    <h1 class="post-title">Deplying Golang Code to AWS Lambda using Apex</h1>
+    
+
+    <br/>
+    
+        <span class="tag"><a href="/tags/golang/">Golang</a></span>
+    
+</header>
+
+        <div class="post-content clearfix">
+    
+
+    
+
+<p>The &ldquo;Serverless&rdquo; model is quickly becoming a buzz word in the cloud world. The world &ldquo;Serverless&rdquo; used to confuse me, because, hey, if there are no servers, where does my code run? As I found out eventually that there are definitely servers running (and serving) my code in the serverless model. Except, I don&rsquo;t have to manage those servers. I don&rsquo;t have to provision them myself. I just write code and deploy to the cloud. I only pay for the time my code actually runs. I don&rsquo;t have to pay for the idle time. AWS Lambda is such a provider which allows you to deploy &ldquo;functions&rdquo; to the cloud that can be triggered on demand - may be via API or some other events from different AWS services. But the problem is AWS Lambda has official support for a limited number of languages - NodeJS, Python, Java and C#. What if I want to use Clojure? Or Rust? Or Golang?</p>
+
+<p>I happen to be enjoying Golang a lot recently. At work, I have rewritten some of our code in Go and was very impressed by the performance and simplicity of the code. Looks very readable and maintainable. So I was thinking, I would want to write my functions in Go. Luckily, there&rsquo;s <a href="http://apex.run/">Apex</a>. It allows us to easily create AWS Lambda projects and deploy them to the cloud. It even supports a number of officially unsupported language. The project itself was developed in Go and has excellent support for Go itself. In this blog post, I would like to walk through the steps I followed to get started with Golang and Apex.</p>
+
+<h2 id="configure-aws-cli">Configure AWS CLI</h2>
+
+<p>Apex can read AWS credentials and config and authenticate on behalf of you. These credentials are stored in <code>~/.aws</code> under credentials and config files. Instead of writing those files manually, we can simply use the AWS CLI to configure those through a command prompt.</p>
+
+<p>Install the AWS CLI if you don&rsquo;t have it already:</p>
+
+<pre><code>pip install awscli
+</code></pre>
+
+<p>Then run:</p>
+
+<pre><code>aws configure
+</code></pre>
+
+<p>Pass your access key, secret and region. The program would write to appropriate files for you!</p>
+
+<p>Please note, you must have sufficient privileges to use Lambda. Here&rsquo;s the minimal IAM policy that should get you started.</p>
+
+<pre><code>{
+  &quot;Version&quot;: &quot;2012-10-17&quot;,
+  &quot;Statement&quot;: [
+    {
+      &quot;Action&quot;: [
+        &quot;iam:CreateRole&quot;,
+        &quot;iam:CreatePolicy&quot;,
+        &quot;iam:AttachRolePolicy&quot;,
+        &quot;iam:PassRole&quot;,
+        &quot;lambda:GetFunction&quot;,
+        &quot;lambda:CreateFunction&quot;,
+        &quot;lambda:DeleteFunction&quot;,
+        &quot;lambda:InvokeFunction&quot;,
+        &quot;lambda:GetFunctionConfiguration&quot;,
+        &quot;lambda:UpdateFunctionConfiguration&quot;,
+        &quot;lambda:UpdateFunctionCode&quot;,
+        &quot;lambda:CreateAlias&quot;,
+        &quot;lambda:UpdateAlias&quot;,
+        &quot;lambda:GetAlias&quot;,
+        &quot;lambda:ListVersionsByFunction&quot;,
+        &quot;logs:FilterLogEvents&quot;,
+        &quot;cloudwatch:GetMetricStatistics&quot;
+      ],
+      &quot;Effect&quot;: &quot;Allow&quot;,
+      &quot;Resource&quot;: &quot;*&quot;
+    }
+  ]
+}
+</code></pre>
+
+<p>(The sample is taken from Apex documentation)</p>
+
+<h2 id="install-apex">Install Apex</h2>
+
+<p>Installation is easy -</p>
+
+<pre><code>curl https://raw.githubusercontent.com/apex/apex/master/install.sh | sh
+</code></pre>
+
+<p>It should download and install the apex cli.</p>
+
+<h2 id="start-a-new-project">Start a New Project</h2>
+
+<p>An Apex project is a collection of functions, it can have multiple functions within it. It also contains a <code>project.json</code> file for project wide configurations.  To start a project, just run:</p>
+
+<pre><code>apex init
+</code></pre>
+
+<p>The CLI would ask you a few questions - answer them and then the program would generate your project. By default it generates NodeJS sample. Let&rsquo;s say we created a project named <code>hike</code>. There will be a <code>project.json</code> in the root and a <code>functions</code> sub directory. Inside the functions directory, you will find a directory named <code>hello</code> containing nodejs file (<code>index.js</code>). But we do not want NodeJS, so let&rsquo;s see how we can use Golang.</p>
+
+<h2 id="using-golang">Using Golang</h2>
+
+<p>Inside your <code>functions</code> directory, you will find each function having their own directory. We would create a function named <code>echo</code>. Let&rsquo;s create a directory named <code>echo</code> and create a file named <code>main.go</code> inside the <code>echo</code> directory.</p>
+
+<p>The directory structure should look like:</p>
+
+<pre><code>➜ tree
+.
+├── functions
+│   └── echo
+│       └── main.go
+└── project.json
+</code></pre>
+
+<p>Here&rsquo;s sample content for the <code>main.go</code> file:</p>
+
+<pre><code class="language-Golang">package main
+
+import (
+	&quot;encoding/json&quot;
+	&quot;fmt&quot;
+	&quot;os&quot;
+	&quot;github.com/apex/go-apex&quot;
+)
+
+func main() {
+	dev := os.Getenv(&quot;APEX_DEV&quot;)
+	if dev == &quot;DEV&quot; {
+		fmt.Println(&quot;I am in Dev&quot;)
+	} else {
+		apex.HandleFunc(func(event json.RawMessage, ctx *apex.Context) (interface{}, error) {
+			return map[string]string{&quot;hello&quot;: &quot;world&quot;}, nil
+		})
+	}
+
+}
+
+</code></pre>
+
+<p>Please note:</p>
+
+<ul>
+<li><p>The <code>github.com/apex/go-apex</code> library works as the Go runtime for AWS Lambda. It also produces the NodeJS shim which makes it possible to use the officially unsupported languages. This library is a requirement.</p></li>
+
+<li><p>While it&rsquo;s easy to deploy and run AWS Lambda functions using Apex, there&rsquo;s no way to execute them locally for debugging purposes. But that&rsquo;s no big deal. Our functions should be standalone and individually runnable and testable, they should not be tightly integrated with Apex.</p></li>
+
+<li><p>For local testing, we set an environment variable. From within the code, we check for that variable to determine whether we&rsquo;re running locally or in production. This is a simple hack but might not be the best way to do it.</p></li>
+
+<li><p>It is recommended that we use separate accounts/environment for testing. Apex allows to configure multiple environments (testing, staging, production etc) which we can use for isolated testing.</p></li>
+</ul>
+
+<h2 id="deploy-the-code">Deploy The Code</h2>
+
+<p>Deployment is very simple:</p>
+
+<pre><code>apex deploy
+</code></pre>
+
+<p>The above command deploys changes to all functions (including new functions). We can also pass the name of the <code>function</code>. Like:</p>
+
+<pre><code>apex deploy echo
+</code></pre>
+
+<p>Once we have deployed the function(s), we can invoke them to see if they&rsquo;re working fine:</p>
+
+<pre><code>apex invoke &lt;function name&gt;
+</code></pre>
+
+<p>In our case:</p>
+
+<pre><code>➜ apex invoke echo
+{&quot;hello&quot;:&quot;world&quot;}
+</code></pre>
+
+<h2 id="running-locally">Running Locally</h2>
+
+<p>Like previously mentioned, it&rsquo;s recommended to maintain separate AWS Accounts / Profiles / Environments for testing / staging / production etc. However, the quick and dirty method is to use an environment variable.</p>
+
+<p>For locally running the golang code shown before, <code>cd</code> into the <code>echo</code> directory where our <code>main.go</code> file lives. Install any dependencies using <code>go get</code> as necessary. Build the code:</p>
+
+<pre><code>go build
+</code></pre>
+
+<p>This should compile the program. You should get a binary file - <code>echo</code> in the same directory. You can run it like this:</p>
+
+<pre><code>APEX_DEV=DEV ./echo
+</code></pre>
+
+<h2 id="handling-dependencies">Handling Dependencies</h2>
+
+<p>Apparently Apex compiles your Go program for Linux and amd64 architecture &ndash; <a href="https://github.com/apex/apex/blob/master/plugins/golang/golang.go#L28">Source</a> here. So if Go can find the dependenices while compiling, it should be fine. You don&rsquo;t have to do anything extra.</p>
+
+<p>In my case, anything I <code>go get</code> works just fine! However if you want more control on the compilation, you can have a per function, <code>function.json</code> file where you can specify build hooks. Check out the <a href="https://github.com/apex/apex/blob/master/_examples/java/functions/with-gradle/function.json#L5">Java</a> code as an example.</p>
+
+<h2 id="logs-metrics">Logs &amp; Metrics</h2>
+
+<p>These two commands can come very handy while working with Apex:</p>
+
+<pre><code>apex logs &lt;function name&gt;
+apex metrics
+</code></pre>
+
+<h2 id="where-to-go-next">Where to Go next?</h2>
+
+<p>Check out the Apex documentation on their site to know about the different commands and configuration options available. They have excellent documentation.</p>
+
+</div>
+
+        <hr/>
+        <div>
+            
+            
+            <link href="//cdn-images.mailchimp.com/embedcode/horizontal-slim-10_7.css" rel="stylesheet" type="text/css">
+            <style type="text/css">
+                #mc_embed_signup{background:#fff; clear:left; font:14px Helvetica,Arial,sans-serif; width:100%;}
+                 
+            </style>
+            <div id="mc_embed_signup">
+            <form action="//rocks.us6.list-manage.com/subscribe/post?u=9629b854ab5af8778b9853891&amp;id=ad5968cb3a" method="post" id="mc-embedded-subscribe-form" name="mc-embedded-subscribe-form" class="validate" target="_blank" novalidate>
+                <div id="mc_embed_signup_scroll">
+                <label for="mce-EMAIL">Subscribe via Email</label>
+                <input type="email" value="" name="EMAIL" class="email" id="mce-EMAIL" placeholder="email address" required>
+                
+                <div style="position: absolute; left: -5000px;" aria-hidden="true"><input type="text" name="b_9629b854ab5af8778b9853891_ad5968cb3a" tabindex="-1" value=""></div>
+                <div class="clear"><input type="submit" value="Subscribe" name="subscribe" id="mc-embedded-subscribe" class="button"></div>
+                </div>
+            </form>
+            </div>
+
+            
+        
+        </div>
+        <hr/>
+
+        <footer class="post-footer clearfix">
+    
+        <p class="post-tags">
+            
+                 <span class="tag"><a href="/tags/golang/">Golang</a></span>
+            
+        </p>
+    
+
+    <div class="share">
+        <a class="icon-twitter" href="http://twitter.com/share?text=Deplying%20Golang%20Code%20to%20AWS%20Lambda%20using%20Apex&url=http%3a%2f%2fmasnun.rocks%2f2017%2f04%2f04%2fdeplying-golang-code-aws-lambda-using-apex%2f"
+            onclick="window.open(this.href, 'twitter-share', 'width=550,height=235');return false;">
+            <i class="fa fa-twitter"></i>
+            <span class="hidden">Twitter</span>
+        </a>
+
+        <a class="icon-facebook" href="https://www.facebook.com/sharer/sharer.php?u=http%3a%2f%2fmasnun.rocks%2f2017%2f04%2f04%2fdeplying-golang-code-aws-lambda-using-apex%2f"
+            onclick="window.open(this.href, 'facebook-share','width=580,height=296');return false;">
+            <i class="fa fa-facebook"></i>
+            <span class="hidden">Facebook</span>
+        </a>
+
+        <a class="icon-google-plus" href="https://plus.google.com/share?url=http%3a%2f%2fmasnun.rocks%2f2017%2f04%2f04%2fdeplying-golang-code-aws-lambda-using-apex%2f"
+           onclick="window.open(this.href, 'google-plus-share', 'width=490,height=530');return false;">
+           <i class="fa fa-google-plus"></i>
+            <span class="hidden">Google+</span>
+        </a>
+    </div>
+</footer>
+
+        <br/>
+
+        
+    <div class="comments">
+        <div id="disqus_thread"></div>
+<script type="text/javascript">
+    var disqus_shortname = 'masnun-rocks';
+    var disqus_identifier = 'http:\/\/masnun.rocks\/2017\/04\/04\/deplying-golang-code-aws-lambda-using-apex\/';
+    var disqus_title = 'Deplying Golang Code to AWS Lambda using Apex';
+    var disqus_url = 'http:\/\/masnun.rocks\/2017\/04\/04\/deplying-golang-code-aws-lambda-using-apex\/';
+
+    (function() {
+        var dsq = document.createElement('script'); dsq.type = 'text/javascript'; dsq.async = true;
+        dsq.src = '//' + disqus_shortname + '.disqus.com/embed.js';
+        (document.getElementsByTagName('head')[0] || document.getElementsByTagName('body')[0]).appendChild(dsq);
+    })();
+</script>
+<noscript>Please enable JavaScript to view the <a href="http://disqus.com/?ref_noscript">comments powered by Disqus.</a></noscript>
+<a href="http://disqus.com" class="dsq-brlink">comments powered by <span class="logo-disqus">Disqus</span></a>
+    </div>
+
+
+    </article>
+
+    
+</div>
+
+            </div>
+        </div>
+
+        <footer class="footer">
+            <div class="container">
+                <div class="site-title-wrapper">
+                    <h1 class="site-title">
+                        <a title="masnun.rocks()" href="http://masnun.rocks/">masnun.rocks()</a>
+                    </h1>
+                    <a class="button-square button-jump-top js-jump-top" href="#">
+                        <i class="fa fa-angle-up"></i>
+                    </a>
+                </div>
+
+                <p class="footer-copyright">
+                    <span>&copy; 2017 / Powered by <a href="http://gohugo.io/">Hugo</a></span>
+                </p>
+                <p class="footer-copyright">
+                    <span><a href="https://github.com/roryg/ghostwriter">Ghostwriter theme</a> By <a href="http://jollygoodthemes.com">JollyGoodThemes</a></span>
+                    <span>/ <a href="https://github.com/jbub/ghostwriter">Ported</a> to Hugo By <a href="https://github.com/jbub">jbub</a></span>
+                </p>
+            </div>
+        </footer>
+
+        <script src="http://masnun.rocks/js/jquery-1.11.3.min.js"></script>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/8.5/highlight.min.js"></script>
+        <script src="http://masnun.rocks/js/jquery.fitvids.js"></script>
+        <script src="http://masnun.rocks/js/scripts.js"></script>
+    </body>
+</html>
+

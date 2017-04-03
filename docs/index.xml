@@ -6,8 +6,196 @@
     <description>Recent content on masnun.rocks()</description>
     <generator>Hugo -- gohugo.io</generator>
     <language>en-us</language>
-    <lastBuildDate>Mon, 27 Mar 2017 12:49:01 +0600</lastBuildDate>
+    <lastBuildDate>Tue, 04 Apr 2017 02:45:30 +0600</lastBuildDate>
     <atom:link href="http://masnun.rocks/index.xml" rel="self" type="application/rss+xml" />
+    
+    <item>
+      <title>Deplying Golang Code to AWS Lambda using Apex</title>
+      <link>http://masnun.rocks/2017/04/04/deplying-golang-code-aws-lambda-using-apex/</link>
+      <pubDate>Tue, 04 Apr 2017 02:45:30 +0600</pubDate>
+      
+      <guid>http://masnun.rocks/2017/04/04/deplying-golang-code-aws-lambda-using-apex/</guid>
+      <description>
+
+&lt;p&gt;The &amp;ldquo;Serverless&amp;rdquo; model is quickly becoming a buzz word in the cloud world. The world &amp;ldquo;Serverless&amp;rdquo; used to confuse me, because, hey, if there are no servers, where does my code run? As I found out eventually that there are definitely servers running (and serving) my code in the serverless model. Except, I don&amp;rsquo;t have to manage those servers. I don&amp;rsquo;t have to provision them myself. I just write code and deploy to the cloud. I only pay for the time my code actually runs. I don&amp;rsquo;t have to pay for the idle time. AWS Lambda is such a provider which allows you to deploy &amp;ldquo;functions&amp;rdquo; to the cloud that can be triggered on demand - may be via API or some other events from different AWS services. But the problem is AWS Lambda has official support for a limited number of languages - NodeJS, Python, Java and C#. What if I want to use Clojure? Or Rust? Or Golang?&lt;/p&gt;
+
+&lt;p&gt;I happen to be enjoying Golang a lot recently. At work, I have rewritten some of our code in Go and was very impressed by the performance and simplicity of the code. Looks very readable and maintainable. So I was thinking, I would want to write my functions in Go. Luckily, there&amp;rsquo;s &lt;a href=&#34;http://apex.run/&#34;&gt;Apex&lt;/a&gt;. It allows us to easily create AWS Lambda projects and deploy them to the cloud. It even supports a number of officially unsupported language. The project itself was developed in Go and has excellent support for Go itself. In this blog post, I would like to walk through the steps I followed to get started with Golang and Apex.&lt;/p&gt;
+
+&lt;h2 id=&#34;configure-aws-cli&#34;&gt;Configure AWS CLI&lt;/h2&gt;
+
+&lt;p&gt;Apex can read AWS credentials and config and authenticate on behalf of you. These credentials are stored in &lt;code&gt;~/.aws&lt;/code&gt; under credentials and config files. Instead of writing those files manually, we can simply use the AWS CLI to configure those through a command prompt.&lt;/p&gt;
+
+&lt;p&gt;Install the AWS CLI if you don&amp;rsquo;t have it already:&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;pip install awscli
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;Then run:&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;aws configure
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;Pass your access key, secret and region. The program would write to appropriate files for you!&lt;/p&gt;
+
+&lt;p&gt;Please note, you must have sufficient privileges to use Lambda. Here&amp;rsquo;s the minimal IAM policy that should get you started.&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;{
+  &amp;quot;Version&amp;quot;: &amp;quot;2012-10-17&amp;quot;,
+  &amp;quot;Statement&amp;quot;: [
+    {
+      &amp;quot;Action&amp;quot;: [
+        &amp;quot;iam:CreateRole&amp;quot;,
+        &amp;quot;iam:CreatePolicy&amp;quot;,
+        &amp;quot;iam:AttachRolePolicy&amp;quot;,
+        &amp;quot;iam:PassRole&amp;quot;,
+        &amp;quot;lambda:GetFunction&amp;quot;,
+        &amp;quot;lambda:CreateFunction&amp;quot;,
+        &amp;quot;lambda:DeleteFunction&amp;quot;,
+        &amp;quot;lambda:InvokeFunction&amp;quot;,
+        &amp;quot;lambda:GetFunctionConfiguration&amp;quot;,
+        &amp;quot;lambda:UpdateFunctionConfiguration&amp;quot;,
+        &amp;quot;lambda:UpdateFunctionCode&amp;quot;,
+        &amp;quot;lambda:CreateAlias&amp;quot;,
+        &amp;quot;lambda:UpdateAlias&amp;quot;,
+        &amp;quot;lambda:GetAlias&amp;quot;,
+        &amp;quot;lambda:ListVersionsByFunction&amp;quot;,
+        &amp;quot;logs:FilterLogEvents&amp;quot;,
+        &amp;quot;cloudwatch:GetMetricStatistics&amp;quot;
+      ],
+      &amp;quot;Effect&amp;quot;: &amp;quot;Allow&amp;quot;,
+      &amp;quot;Resource&amp;quot;: &amp;quot;*&amp;quot;
+    }
+  ]
+}
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;(The sample is taken from Apex documentation)&lt;/p&gt;
+
+&lt;h2 id=&#34;install-apex&#34;&gt;Install Apex&lt;/h2&gt;
+
+&lt;p&gt;Installation is easy -&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;curl https://raw.githubusercontent.com/apex/apex/master/install.sh | sh
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;It should download and install the apex cli.&lt;/p&gt;
+
+&lt;h2 id=&#34;start-a-new-project&#34;&gt;Start a New Project&lt;/h2&gt;
+
+&lt;p&gt;An Apex project is a collection of functions, it can have multiple functions within it. It also contains a &lt;code&gt;project.json&lt;/code&gt; file for project wide configurations.  To start a project, just run:&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;apex init
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;The CLI would ask you a few questions - answer them and then the program would generate your project. By default it generates NodeJS sample. Let&amp;rsquo;s say we created a project named &lt;code&gt;hike&lt;/code&gt;. There will be a &lt;code&gt;project.json&lt;/code&gt; in the root and a &lt;code&gt;functions&lt;/code&gt; sub directory. Inside the functions directory, you will find a directory named &lt;code&gt;hello&lt;/code&gt; containing nodejs file (&lt;code&gt;index.js&lt;/code&gt;). But we do not want NodeJS, so let&amp;rsquo;s see how we can use Golang.&lt;/p&gt;
+
+&lt;h2 id=&#34;using-golang&#34;&gt;Using Golang&lt;/h2&gt;
+
+&lt;p&gt;Inside your &lt;code&gt;functions&lt;/code&gt; directory, you will find each function having their own directory. We would create a function named &lt;code&gt;echo&lt;/code&gt;. Let&amp;rsquo;s create a directory named &lt;code&gt;echo&lt;/code&gt; and create a file named &lt;code&gt;main.go&lt;/code&gt; inside the &lt;code&gt;echo&lt;/code&gt; directory.&lt;/p&gt;
+
+&lt;p&gt;The directory structure should look like:&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;➜ tree
+.
+├── functions
+│   └── echo
+│       └── main.go
+└── project.json
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;Here&amp;rsquo;s sample content for the &lt;code&gt;main.go&lt;/code&gt; file:&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class=&#34;language-Golang&#34;&gt;package main
+
+import (
+	&amp;quot;encoding/json&amp;quot;
+	&amp;quot;fmt&amp;quot;
+	&amp;quot;os&amp;quot;
+	&amp;quot;github.com/apex/go-apex&amp;quot;
+)
+
+func main() {
+	dev := os.Getenv(&amp;quot;APEX_DEV&amp;quot;)
+	if dev == &amp;quot;DEV&amp;quot; {
+		fmt.Println(&amp;quot;I am in Dev&amp;quot;)
+	} else {
+		apex.HandleFunc(func(event json.RawMessage, ctx *apex.Context) (interface{}, error) {
+			return map[string]string{&amp;quot;hello&amp;quot;: &amp;quot;world&amp;quot;}, nil
+		})
+	}
+
+}
+
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;Please note:&lt;/p&gt;
+
+&lt;ul&gt;
+&lt;li&gt;&lt;p&gt;The &lt;code&gt;github.com/apex/go-apex&lt;/code&gt; library works as the Go runtime for AWS Lambda. It also produces the NodeJS shim which makes it possible to use the officially unsupported languages. This library is a requirement.&lt;/p&gt;&lt;/li&gt;
+
+&lt;li&gt;&lt;p&gt;While it&amp;rsquo;s easy to deploy and run AWS Lambda functions using Apex, there&amp;rsquo;s no way to execute them locally for debugging purposes. But that&amp;rsquo;s no big deal. Our functions should be standalone and individually runnable and testable, they should not be tightly integrated with Apex.&lt;/p&gt;&lt;/li&gt;
+
+&lt;li&gt;&lt;p&gt;For local testing, we set an environment variable. From within the code, we check for that variable to determine whether we&amp;rsquo;re running locally or in production. This is a simple hack but might not be the best way to do it.&lt;/p&gt;&lt;/li&gt;
+
+&lt;li&gt;&lt;p&gt;It is recommended that we use separate accounts/environment for testing. Apex allows to configure multiple environments (testing, staging, production etc) which we can use for isolated testing.&lt;/p&gt;&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;h2 id=&#34;deploy-the-code&#34;&gt;Deploy The Code&lt;/h2&gt;
+
+&lt;p&gt;Deployment is very simple:&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;apex deploy
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;The above command deploys changes to all functions (including new functions). We can also pass the name of the &lt;code&gt;function&lt;/code&gt;. Like:&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;apex deploy echo
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;Once we have deployed the function(s), we can invoke them to see if they&amp;rsquo;re working fine:&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;apex invoke &amp;lt;function name&amp;gt;
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;In our case:&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;➜ apex invoke echo
+{&amp;quot;hello&amp;quot;:&amp;quot;world&amp;quot;}
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;h2 id=&#34;running-locally&#34;&gt;Running Locally&lt;/h2&gt;
+
+&lt;p&gt;Like previously mentioned, it&amp;rsquo;s recommended to maintain separate AWS Accounts / Profiles / Environments for testing / staging / production etc. However, the quick and dirty method is to use an environment variable.&lt;/p&gt;
+
+&lt;p&gt;For locally running the golang code shown before, &lt;code&gt;cd&lt;/code&gt; into the &lt;code&gt;echo&lt;/code&gt; directory where our &lt;code&gt;main.go&lt;/code&gt; file lives. Install any dependencies using &lt;code&gt;go get&lt;/code&gt; as necessary. Build the code:&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;go build
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;This should compile the program. You should get a binary file - &lt;code&gt;echo&lt;/code&gt; in the same directory. You can run it like this:&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;APEX_DEV=DEV ./echo
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;h2 id=&#34;handling-dependencies&#34;&gt;Handling Dependencies&lt;/h2&gt;
+
+&lt;p&gt;Apparently Apex compiles your Go program for Linux and amd64 architecture &amp;ndash; &lt;a href=&#34;https://github.com/apex/apex/blob/master/plugins/golang/golang.go#L28&#34;&gt;Source&lt;/a&gt; here. So if Go can find the dependenices while compiling, it should be fine. You don&amp;rsquo;t have to do anything extra.&lt;/p&gt;
+
+&lt;p&gt;In my case, anything I &lt;code&gt;go get&lt;/code&gt; works just fine! However if you want more control on the compilation, you can have a per function, &lt;code&gt;function.json&lt;/code&gt; file where you can specify build hooks. Check out the &lt;a href=&#34;https://github.com/apex/apex/blob/master/_examples/java/functions/with-gradle/function.json#L5&#34;&gt;Java&lt;/a&gt; code as an example.&lt;/p&gt;
+
+&lt;h2 id=&#34;logs-metrics&#34;&gt;Logs &amp;amp; Metrics&lt;/h2&gt;
+
+&lt;p&gt;These two commands can come very handy while working with Apex:&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;apex logs &amp;lt;function name&amp;gt;
+apex metrics
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;h2 id=&#34;where-to-go-next&#34;&gt;Where to Go next?&lt;/h2&gt;
+
+&lt;p&gt;Check out the Apex documentation on their site to know about the different commands and configuration options available. They have excellent documentation.&lt;/p&gt;
+</description>
+    </item>
     
     <item>
       <title>Django REST Framework: Using the request object</title>
@@ -2359,119 +2547,6 @@ urls to asgi or uwsgi depending on the url or &lt;code&gt;Upgrade: WebSocket&lt;
 &lt;p&gt;The Channels system does not gurantee delivery. If there are tasks which needs the certainity, it is highly
 recommended to use a system like Celery for these parts. Or we can also roll our own checks and retry logic if
 we feel like that.&lt;/p&gt;
-</description>
-    </item>
-    
-    <item>
-      <title>About</title>
-      <link>http://masnun.rocks/about/</link>
-      <pubDate>Sun, 25 Sep 2016 11:20:58 +0600</pubDate>
-      
-      <guid>http://masnun.rocks/about/</guid>
-      <description>
-
-&lt;p&gt;I am a business graduate, *nix fan, open source enthusiast, fast learner, early adopter, team guy, explorer, deeply driven, self motivated software craftsman.&lt;/p&gt;
-
-&lt;p&gt;I love music, hacking and playing urban terror. I contribute to open source projects at leisure. I would love to pursue challenging opportunities which contribute to a better tomorrow for all of us!&lt;/p&gt;
-
-&lt;h2 id=&#34;what-is-in-my-skill-set&#34;&gt;What is in my skill set?&lt;/h2&gt;
-
-&lt;p&gt;I am a &lt;strong&gt;full stack developer&lt;/strong&gt; with extensive experience in &lt;strong&gt;system administration&lt;/strong&gt;. I have played with a lot of tools and toys. However, I would call these my primary skills:&lt;/p&gt;
-
-&lt;p&gt;&lt;strong&gt;Python:&lt;/strong&gt; &lt;br/&gt;
-You can call me a dedicated Python Developer. I love all things Python. I have 4 years of working experience with different Python tools and toys.&lt;/p&gt;
-
-&lt;ul&gt;
-&lt;li&gt;Django&lt;/li&gt;
-&lt;li&gt;Django Rest Framework&lt;/li&gt;
-&lt;li&gt;Flask&lt;/li&gt;
-&lt;li&gt;Celery&lt;/li&gt;
-&lt;li&gt;Scrapy&lt;/li&gt;
-&lt;li&gt;BeautifulSoup&lt;/li&gt;
-&lt;li&gt;Google App Engine&lt;/li&gt;
-&lt;li&gt;Kivy&lt;/li&gt;
-&lt;li&gt;PyQT / PySide&lt;/li&gt;
-&lt;/ul&gt;
-
-&lt;p&gt;&lt;strong&gt;PHP:&lt;/strong&gt; &lt;br/&gt;
-PHP has been my primary stack for a long time. I started doing professional PHP development since late 2008. I still enjoy writing PHP, specially with the new syntax, language features and modern frameworks - PHP is still fun to me.&lt;/p&gt;
-
-&lt;ul&gt;
-&lt;li&gt;Laravel&lt;/li&gt;
-&lt;li&gt;Symfony&lt;/li&gt;
-&lt;li&gt;Zend (1.x)&lt;/li&gt;
-&lt;li&gt;Code Igniter&lt;/li&gt;
-&lt;li&gt;WordPress&lt;/li&gt;
-&lt;li&gt;Guzzle&lt;/li&gt;
-&lt;/ul&gt;
-
-&lt;p&gt;&lt;strong&gt;Front End:&lt;/strong&gt;&lt;br/&gt;
-I have mostly worked as a backend developer during my career over the past 7-8 years. But I have had my share of front end development too. I am definitely &lt;strong&gt;not&lt;/strong&gt; a kickass front end ninja but I do know more than enough HTML, CSS and JavaScript to build decent Web UIs and mobile applications.&lt;/p&gt;
-
-&lt;ul&gt;
-&lt;li&gt;JavaScript&lt;/li&gt;
-&lt;li&gt;jQuery&lt;/li&gt;
-&lt;li&gt;AngularJS (1.x)&lt;/li&gt;
-&lt;li&gt;ReactJS&lt;/li&gt;
-&lt;li&gt;Bootstrap&lt;/li&gt;
-&lt;/ul&gt;
-
-&lt;p&gt;I am learning &lt;code&gt;ES2015&lt;/code&gt; and beyond for writing cleaner codes.&lt;/p&gt;
-
-&lt;p&gt;&lt;strong&gt;Tool Set:&lt;/strong&gt; &lt;br/&gt;
-I know &lt;strong&gt;git&lt;/strong&gt; and work on &lt;strong&gt;OS X&lt;/strong&gt;. I have &lt;strong&gt;Linux VMs&lt;/strong&gt;  running inside &lt;strong&gt;Vagrant&lt;/strong&gt;. I am also a big fan of &lt;strong&gt;Docker&lt;/strong&gt; and find it a painless solution to develop and deploy my applications. I have working experience with &lt;strong&gt;MySQL&lt;/strong&gt;, &lt;strong&gt;PostgreSQL&lt;/strong&gt; and &lt;strong&gt;NoSQLs&lt;/strong&gt; as well. I have scored &lt;strong&gt;95%&lt;/strong&gt; in &lt;strong&gt;MongoDB&lt;/strong&gt; course from &lt;strong&gt;Mongo University&lt;/strong&gt;.  I will not only &lt;strong&gt;build&lt;/strong&gt; your app but also &lt;strong&gt;deploy&lt;/strong&gt; it to cloud providers like heroku, aws, rackspace or any VPS.&lt;/p&gt;
-
-&lt;p&gt;I am a believer in &lt;strong&gt;code quality&lt;/strong&gt; and follow the best practices. I use &lt;strong&gt;Jetbrains IDEs&lt;/strong&gt; for optimum productivity and cleaner codes. I believe every developer should write &lt;strong&gt;unit tests&lt;/strong&gt; before starting to write business logic. &lt;strong&gt;BDD&lt;/strong&gt; and &lt;strong&gt;TDD&lt;/strong&gt; are my super secret ninja skills against bugs.&lt;/p&gt;
-
-&lt;p&gt;While I am mostly focused on Python, PHP and Javascript, I love learning new technologies and adapt new tools to solve challenging problems. I have decent expertise in these tools too:&lt;/p&gt;
-
-&lt;p&gt;&lt;strong&gt;Node.js:&lt;/strong&gt;&lt;br/&gt;
-I of course use Node.js as a part of my front end tooling but I also love building simple backends using it. I love the &lt;code&gt;npm&lt;/code&gt; package managers for it&amp;rsquo;s simplicity.&lt;/p&gt;
-
-&lt;ul&gt;
-&lt;li&gt;Express&lt;/li&gt;
-&lt;li&gt;SailsJS&lt;/li&gt;
-&lt;li&gt;MEAN&lt;/li&gt;
-&lt;li&gt;Keystone JS&lt;/li&gt;
-&lt;li&gt;&lt;code&gt;requests&lt;/code&gt; module for scraping&lt;/li&gt;
-&lt;/ul&gt;
-
-&lt;p&gt;&lt;br/&gt;
-&lt;strong&gt;Redis:&lt;/strong&gt; I have used it as message queue, cache and data store.&lt;/p&gt;
-
-&lt;p&gt;&lt;strong&gt;Golang:&lt;/strong&gt; I am a big fan of it’s concurrency model, simple syntax and a nice standard library. I have written several command line tools in the language. Cross compilation and the &lt;code&gt;go fmt&lt;/code&gt; tool is a big plus for me.&lt;/p&gt;
-
-&lt;h2 id=&#34;what-do-i-want-to-learn-next&#34;&gt;What do I want to learn next?&lt;/h2&gt;
-
-&lt;ul&gt;
-&lt;li&gt;Machine Learning&lt;/li&gt;
-&lt;li&gt;Data Science&lt;/li&gt;
-&lt;li&gt;Natural Language Processing&lt;/li&gt;
-&lt;/ul&gt;
-
-&lt;h2 id=&#34;how-can-i-add-value-to-your-business&#34;&gt;How can I add value to your business?&lt;/h2&gt;
-
-&lt;p&gt;I have a &lt;strong&gt;business degree&lt;/strong&gt; (and currently doing &lt;strong&gt;MBA&lt;/strong&gt;). I have a very keen interest in &lt;strong&gt;growth hacking&lt;/strong&gt;. I try to understand the business process and &lt;strong&gt;add values&lt;/strong&gt; to both customers and the business. I assume &lt;strong&gt;ownership&lt;/strong&gt; and &lt;strong&gt;lead by example&lt;/strong&gt;. I understand the importance of &lt;strong&gt;shipping fast&lt;/strong&gt; and capture the market before competitors. I think &lt;strong&gt;out of the box&lt;/strong&gt; and bring &lt;strong&gt;novelty&lt;/strong&gt; to the table.&lt;/p&gt;
-
-&lt;p&gt;I translate the &lt;strong&gt;business requirements&lt;/strong&gt; into &lt;strong&gt;agile&lt;/strong&gt; software development practices and stride to achieve enhanced &lt;strong&gt;value creation&lt;/strong&gt; for all of us!&lt;/p&gt;
-
-&lt;h2 id=&#34;community-engagement&#34;&gt;Community Engagement&lt;/h2&gt;
-
-&lt;ul&gt;
-&lt;li&gt;&lt;a href=&#34;http://pybd.org/&#34; target=&#34;_blank&#34;&gt;Python Bangladesh&lt;/a&gt;&lt;/li&gt;
-
-&lt;li&gt;&lt;a href=&#34;https://www.facebook.com/groups/pxperts/&#34; target=&#34;_blank&#34;&gt;phpXperts&lt;/a&gt;&lt;/li&gt;
-
-&lt;li&gt;&lt;a href=&#34;http://laravelbd.com&#34; target=&#34;_blank&#34;&gt;Laravel Bangladesh&lt;/a&gt;&lt;/li&gt;
-
-&lt;li&gt;&lt;a href=&#34;http://talkjs.net/&#34; target=&#34;_blank&#34;&gt;Talk.js&lt;/a&gt;&lt;/li&gt;
-
-&lt;li&gt;&lt;a href=&#34;https://www.facebook.com/groups/gofans/&#34; target=&#34;_blank&#34;&gt;Go Fans&lt;/a&gt;&lt;/li&gt;
-
-&lt;li&gt;&lt;a href=&#34;http://gbgkhulna.org&#34; target=&#34;_blank&#34;&gt;Google Business Group Khulna&lt;/a&gt;&lt;/li&gt;
-
-&lt;li&gt;&lt;a href=&#34;http://nodeschool.io/khulna/&#34; target=&#34;_blank&#34;&gt;NodeSchool Khulna&lt;/a&gt;&lt;/li&gt;
-&lt;/ul&gt;
 </description>
     </item>
     

@@ -9,6 +9,194 @@
     <atom:link href="http://masnun.rocks/tags/golang/index.xml" rel="self" type="application/rss+xml" />
     
     <item>
+      <title>Deplying Golang Code to AWS Lambda using Apex</title>
+      <link>http://masnun.rocks/2017/04/04/deplying-golang-code-aws-lambda-using-apex/</link>
+      <pubDate>Tue, 04 Apr 2017 02:45:30 +0600</pubDate>
+      
+      <guid>http://masnun.rocks/2017/04/04/deplying-golang-code-aws-lambda-using-apex/</guid>
+      <description>
+
+&lt;p&gt;The &amp;ldquo;Serverless&amp;rdquo; model is quickly becoming a buzz word in the cloud world. The world &amp;ldquo;Serverless&amp;rdquo; used to confuse me, because, hey, if there are no servers, where does my code run? As I found out eventually that there are definitely servers running (and serving) my code in the serverless model. Except, I don&amp;rsquo;t have to manage those servers. I don&amp;rsquo;t have to provision them myself. I just write code and deploy to the cloud. I only pay for the time my code actually runs. I don&amp;rsquo;t have to pay for the idle time. AWS Lambda is such a provider which allows you to deploy &amp;ldquo;functions&amp;rdquo; to the cloud that can be triggered on demand - may be via API or some other events from different AWS services. But the problem is AWS Lambda has official support for a limited number of languages - NodeJS, Python, Java and C#. What if I want to use Clojure? Or Rust? Or Golang?&lt;/p&gt;
+
+&lt;p&gt;I happen to be enjoying Golang a lot recently. At work, I have rewritten some of our code in Go and was very impressed by the performance and simplicity of the code. Looks very readable and maintainable. So I was thinking, I would want to write my functions in Go. Luckily, there&amp;rsquo;s &lt;a href=&#34;http://apex.run/&#34;&gt;Apex&lt;/a&gt;. It allows us to easily create AWS Lambda projects and deploy them to the cloud. It even supports a number of officially unsupported language. The project itself was developed in Go and has excellent support for Go itself. In this blog post, I would like to walk through the steps I followed to get started with Golang and Apex.&lt;/p&gt;
+
+&lt;h2 id=&#34;configure-aws-cli&#34;&gt;Configure AWS CLI&lt;/h2&gt;
+
+&lt;p&gt;Apex can read AWS credentials and config and authenticate on behalf of you. These credentials are stored in &lt;code&gt;~/.aws&lt;/code&gt; under credentials and config files. Instead of writing those files manually, we can simply use the AWS CLI to configure those through a command prompt.&lt;/p&gt;
+
+&lt;p&gt;Install the AWS CLI if you don&amp;rsquo;t have it already:&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;pip install awscli
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;Then run:&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;aws configure
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;Pass your access key, secret and region. The program would write to appropriate files for you!&lt;/p&gt;
+
+&lt;p&gt;Please note, you must have sufficient privileges to use Lambda. Here&amp;rsquo;s the minimal IAM policy that should get you started.&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;{
+  &amp;quot;Version&amp;quot;: &amp;quot;2012-10-17&amp;quot;,
+  &amp;quot;Statement&amp;quot;: [
+    {
+      &amp;quot;Action&amp;quot;: [
+        &amp;quot;iam:CreateRole&amp;quot;,
+        &amp;quot;iam:CreatePolicy&amp;quot;,
+        &amp;quot;iam:AttachRolePolicy&amp;quot;,
+        &amp;quot;iam:PassRole&amp;quot;,
+        &amp;quot;lambda:GetFunction&amp;quot;,
+        &amp;quot;lambda:CreateFunction&amp;quot;,
+        &amp;quot;lambda:DeleteFunction&amp;quot;,
+        &amp;quot;lambda:InvokeFunction&amp;quot;,
+        &amp;quot;lambda:GetFunctionConfiguration&amp;quot;,
+        &amp;quot;lambda:UpdateFunctionConfiguration&amp;quot;,
+        &amp;quot;lambda:UpdateFunctionCode&amp;quot;,
+        &amp;quot;lambda:CreateAlias&amp;quot;,
+        &amp;quot;lambda:UpdateAlias&amp;quot;,
+        &amp;quot;lambda:GetAlias&amp;quot;,
+        &amp;quot;lambda:ListVersionsByFunction&amp;quot;,
+        &amp;quot;logs:FilterLogEvents&amp;quot;,
+        &amp;quot;cloudwatch:GetMetricStatistics&amp;quot;
+      ],
+      &amp;quot;Effect&amp;quot;: &amp;quot;Allow&amp;quot;,
+      &amp;quot;Resource&amp;quot;: &amp;quot;*&amp;quot;
+    }
+  ]
+}
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;(The sample is taken from Apex documentation)&lt;/p&gt;
+
+&lt;h2 id=&#34;install-apex&#34;&gt;Install Apex&lt;/h2&gt;
+
+&lt;p&gt;Installation is easy -&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;curl https://raw.githubusercontent.com/apex/apex/master/install.sh | sh
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;It should download and install the apex cli.&lt;/p&gt;
+
+&lt;h2 id=&#34;start-a-new-project&#34;&gt;Start a New Project&lt;/h2&gt;
+
+&lt;p&gt;An Apex project is a collection of functions, it can have multiple functions within it. It also contains a &lt;code&gt;project.json&lt;/code&gt; file for project wide configurations.  To start a project, just run:&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;apex init
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;The CLI would ask you a few questions - answer them and then the program would generate your project. By default it generates NodeJS sample. Let&amp;rsquo;s say we created a project named &lt;code&gt;hike&lt;/code&gt;. There will be a &lt;code&gt;project.json&lt;/code&gt; in the root and a &lt;code&gt;functions&lt;/code&gt; sub directory. Inside the functions directory, you will find a directory named &lt;code&gt;hello&lt;/code&gt; containing nodejs file (&lt;code&gt;index.js&lt;/code&gt;). But we do not want NodeJS, so let&amp;rsquo;s see how we can use Golang.&lt;/p&gt;
+
+&lt;h2 id=&#34;using-golang&#34;&gt;Using Golang&lt;/h2&gt;
+
+&lt;p&gt;Inside your &lt;code&gt;functions&lt;/code&gt; directory, you will find each function having their own directory. We would create a function named &lt;code&gt;echo&lt;/code&gt;. Let&amp;rsquo;s create a directory named &lt;code&gt;echo&lt;/code&gt; and create a file named &lt;code&gt;main.go&lt;/code&gt; inside the &lt;code&gt;echo&lt;/code&gt; directory.&lt;/p&gt;
+
+&lt;p&gt;The directory structure should look like:&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;➜ tree
+.
+├── functions
+│   └── echo
+│       └── main.go
+└── project.json
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;Here&amp;rsquo;s sample content for the &lt;code&gt;main.go&lt;/code&gt; file:&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class=&#34;language-Golang&#34;&gt;package main
+
+import (
+	&amp;quot;encoding/json&amp;quot;
+	&amp;quot;fmt&amp;quot;
+	&amp;quot;os&amp;quot;
+	&amp;quot;github.com/apex/go-apex&amp;quot;
+)
+
+func main() {
+	dev := os.Getenv(&amp;quot;APEX_DEV&amp;quot;)
+	if dev == &amp;quot;DEV&amp;quot; {
+		fmt.Println(&amp;quot;I am in Dev&amp;quot;)
+	} else {
+		apex.HandleFunc(func(event json.RawMessage, ctx *apex.Context) (interface{}, error) {
+			return map[string]string{&amp;quot;hello&amp;quot;: &amp;quot;world&amp;quot;}, nil
+		})
+	}
+
+}
+
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;Please note:&lt;/p&gt;
+
+&lt;ul&gt;
+&lt;li&gt;&lt;p&gt;The &lt;code&gt;github.com/apex/go-apex&lt;/code&gt; library works as the Go runtime for AWS Lambda. It also produces the NodeJS shim which makes it possible to use the officially unsupported languages. This library is a requirement.&lt;/p&gt;&lt;/li&gt;
+
+&lt;li&gt;&lt;p&gt;While it&amp;rsquo;s easy to deploy and run AWS Lambda functions using Apex, there&amp;rsquo;s no way to execute them locally for debugging purposes. But that&amp;rsquo;s no big deal. Our functions should be standalone and individually runnable and testable, they should not be tightly integrated with Apex.&lt;/p&gt;&lt;/li&gt;
+
+&lt;li&gt;&lt;p&gt;For local testing, we set an environment variable. From within the code, we check for that variable to determine whether we&amp;rsquo;re running locally or in production. This is a simple hack but might not be the best way to do it.&lt;/p&gt;&lt;/li&gt;
+
+&lt;li&gt;&lt;p&gt;It is recommended that we use separate accounts/environment for testing. Apex allows to configure multiple environments (testing, staging, production etc) which we can use for isolated testing.&lt;/p&gt;&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;h2 id=&#34;deploy-the-code&#34;&gt;Deploy The Code&lt;/h2&gt;
+
+&lt;p&gt;Deployment is very simple:&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;apex deploy
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;The above command deploys changes to all functions (including new functions). We can also pass the name of the &lt;code&gt;function&lt;/code&gt;. Like:&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;apex deploy echo
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;Once we have deployed the function(s), we can invoke them to see if they&amp;rsquo;re working fine:&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;apex invoke &amp;lt;function name&amp;gt;
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;In our case:&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;➜ apex invoke echo
+{&amp;quot;hello&amp;quot;:&amp;quot;world&amp;quot;}
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;h2 id=&#34;running-locally&#34;&gt;Running Locally&lt;/h2&gt;
+
+&lt;p&gt;Like previously mentioned, it&amp;rsquo;s recommended to maintain separate AWS Accounts / Profiles / Environments for testing / staging / production etc. However, the quick and dirty method is to use an environment variable.&lt;/p&gt;
+
+&lt;p&gt;For locally running the golang code shown before, &lt;code&gt;cd&lt;/code&gt; into the &lt;code&gt;echo&lt;/code&gt; directory where our &lt;code&gt;main.go&lt;/code&gt; file lives. Install any dependencies using &lt;code&gt;go get&lt;/code&gt; as necessary. Build the code:&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;go build
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;This should compile the program. You should get a binary file - &lt;code&gt;echo&lt;/code&gt; in the same directory. You can run it like this:&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;APEX_DEV=DEV ./echo
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;h2 id=&#34;handling-dependencies&#34;&gt;Handling Dependencies&lt;/h2&gt;
+
+&lt;p&gt;Apparently Apex compiles your Go program for Linux and amd64 architecture &amp;ndash; &lt;a href=&#34;https://github.com/apex/apex/blob/master/plugins/golang/golang.go#L28&#34;&gt;Source&lt;/a&gt; here. So if Go can find the dependenices while compiling, it should be fine. You don&amp;rsquo;t have to do anything extra.&lt;/p&gt;
+
+&lt;p&gt;In my case, anything I &lt;code&gt;go get&lt;/code&gt; works just fine! However if you want more control on the compilation, you can have a per function, &lt;code&gt;function.json&lt;/code&gt; file where you can specify build hooks. Check out the &lt;a href=&#34;https://github.com/apex/apex/blob/master/_examples/java/functions/with-gradle/function.json#L5&#34;&gt;Java&lt;/a&gt; code as an example.&lt;/p&gt;
+
+&lt;h2 id=&#34;logs-metrics&#34;&gt;Logs &amp;amp; Metrics&lt;/h2&gt;
+
+&lt;p&gt;These two commands can come very handy while working with Apex:&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;apex logs &amp;lt;function name&amp;gt;
+apex metrics
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;h2 id=&#34;where-to-go-next&#34;&gt;Where to Go next?&lt;/h2&gt;
+
+&lt;p&gt;Check out the Apex documentation on their site to know about the different commands and configuration options available. They have excellent documentation.&lt;/p&gt;
+</description>
+    </item>
+    
+    <item>
       <title>Golang: Building a Telegram bot for Aggregating Content</title>
       <link>http://masnun.rocks/2016/11/05/golang-building-a-telegram-bot-for-aggregating-content/</link>
       <pubDate>Sat, 05 Nov 2016 22:36:10 +0600</pubDate>
