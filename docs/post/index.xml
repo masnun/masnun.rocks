@@ -6,8 +6,179 @@
     <description>Recent content in Post-rsses on masnun.rocks()</description>
     <generator>Hugo -- gohugo.io</generator>
     <language>en-us</language>
-    <lastBuildDate>Tue, 04 Apr 2017 02:45:30 +0600</lastBuildDate>
+    <lastBuildDate>Sat, 15 Apr 2017 15:55:18 +0600</lastBuildDate>
     <atom:link href="http://masnun.rocks/post/index.xml" rel="self" type="application/rss+xml" />
+    
+    <item>
+      <title>Interfaces in Python: Protocols and ABCs</title>
+      <link>http://masnun.rocks/2017/04/15/interfaces-in-python-protocols-and-abcs/</link>
+      <pubDate>Sat, 15 Apr 2017 15:55:18 +0600</pubDate>
+      
+      <guid>http://masnun.rocks/2017/04/15/interfaces-in-python-protocols-and-abcs/</guid>
+      <description>
+
+&lt;p&gt;The idea of interface is really simple - it is the description of how an object behaves. An interface tells us what an object can do to play it&amp;rsquo;s role in a system. In object oriented programming, an interface is a set of publicly accessible methods on an object which can be used by other parts of the program to interact with that object. Interfaces set clear boundaries and help us organize our code better. In some langauges like Java, interfaces are part of the language syntax and strictly enforced. However, in Python, things are a little different. In this post, we will explore how interfaces can be implemented in Python.&lt;/p&gt;
+
+&lt;h2 id=&#34;informal-interfaces-protocols-duck-typing&#34;&gt;Informal Interfaces: Protocols / Duck Typing&lt;/h2&gt;
+
+&lt;p&gt;There&amp;rsquo;s no &lt;code&gt;interface&lt;/code&gt; keyword in Python. The Java / C# way of using interfaces is not available here. In the dynamic language world, things are more implicit. We&amp;rsquo;re more focused on how an object behaves, rather than it&amp;rsquo;s type/class.&lt;/p&gt;
+
+&lt;blockquote&gt;
+&lt;p&gt;If it talks and walks like a duck, then it is a duck&lt;/p&gt;
+&lt;/blockquote&gt;
+
+&lt;p&gt;So if we have an object that can fly and quack like a duck, we consider it as a duck. This called &amp;ldquo;Duck Typing&amp;rdquo;. In runtime, instead of checking the type of an object, we try to invoke a method we expect the object to have. If it behaves the way we expected, we&amp;rsquo;re fine and move along. But if it doesn&amp;rsquo;t, things might blow up. To be safe, we often handle the exceptions in a &lt;code&gt;try..except&lt;/code&gt; block or use &lt;code&gt;hasattr&lt;/code&gt; to check if an object has the specific method.&lt;/p&gt;
+
+&lt;p&gt;In the Python world, we often hear &amp;ldquo;file like object&amp;rdquo; or &amp;ldquo;an iterable&amp;rdquo; - if an object has a &lt;code&gt;read&lt;/code&gt; method, it can be treated as a file like object, if it has an &lt;code&gt;__iter__&lt;/code&gt; magic method, it is an iterable. So any object, regardless of it&amp;rsquo;s class/type, can conform to a certain interface just by implementing the expected behavior (methods). These informal interfaces are termed as &lt;strong&gt;protocols&lt;/strong&gt;. Since they are informal, they can not be formally enforced. They are mostly illustrated in the documentations or defined by convention. All the cool magic methods you have heard about - &lt;code&gt;__len__&lt;/code&gt;, &lt;code&gt;__contains__&lt;/code&gt;, &lt;code&gt;__iter__&lt;/code&gt; - they all help an object to conform to some sort of protocols.&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class=&#34;language-python&#34;&gt;class Team:
+    def __init__(self, members):
+        self.__members = members
+
+    def __len__(self):
+        return len(self.__members)
+
+    def __contains__(self, member):
+        return member in self.__members
+
+
+justice_league_fav = Team([&amp;quot;batman&amp;quot;, &amp;quot;wonder woman&amp;quot;, &amp;quot;flash&amp;quot;])
+
+# Sized protocol
+print(len(justice_league_fav))
+
+# Container protocol
+print(&amp;quot;batman&amp;quot; in justice_league_fav)
+print(&amp;quot;superman&amp;quot; in justice_league_fav)
+print(&amp;quot;cyborg&amp;quot; not in justice_league_fav)
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;In our above example, by implementing the &lt;code&gt;__len__&lt;/code&gt; and &lt;code&gt;__contains__&lt;/code&gt; method, we can now directly use the &lt;code&gt;len&lt;/code&gt; function on a &lt;code&gt;Team&lt;/code&gt; instance and check for membership using the &lt;code&gt;in&lt;/code&gt; operator. If we add the &lt;code&gt;__iter__&lt;/code&gt; method to implement the iterable protocol, we would even be able to do something like:&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class=&#34;language-python&#34;&gt;
+for member in justice_league_fav:
+    print(member)
+
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;Without implementing the &lt;code&gt;__iter__&lt;/code&gt; method, if we try to iterate over the team, we will get an error like:&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;TypeError: &#39;Team&#39; object is not iterable
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;So we can see that protocols are like informal interfaces. We can implement a protocol by implementing the methods expected by it.&lt;/p&gt;
+
+&lt;h2 id=&#34;formal-interfaces-abcs&#34;&gt;Formal Interfaces: ABCs&lt;/h2&gt;
+
+&lt;p&gt;While protocols work fine in many cases, there are situations where informal interfaces or duck typing in general can cause confusion. For example, a &lt;code&gt;Bird&lt;/code&gt; and &lt;code&gt;Aeroplane&lt;/code&gt; both can &lt;code&gt;fly()&lt;/code&gt;. But they are not the same thing even if they implement the same interfaces / protocols. &lt;strong&gt;Abstract Base Classes&lt;/strong&gt; or &lt;strong&gt;ABCs&lt;/strong&gt; can help solve this issue.&lt;/p&gt;
+
+&lt;p&gt;The concept behind ABCs is simple - we define base classes which are abstract in nature. We define certain methods on the base classes as abstract methods. So any objects deriving from these bases classes are forced to implement those methods. And since we&amp;rsquo;re using base classes, if we see an object has our class as a base class, we can say that this object implements the interface. That is now we can use types to tell if an object implements a certain interface. Let&amp;rsquo;s see an example.&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class=&#34;language-python&#34;&gt;import abc
+
+class Bird(abc.ABC):
+    @abc.abstractmethod
+    def fly(self):
+        pass
+
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;There&amp;rsquo;s the &lt;code&gt;abc&lt;/code&gt; module which has a metaclass named &lt;code&gt;ABCMeta&lt;/code&gt;. ABCs are created from this metaclass. So we can either use it directly as the metaclass of our ABC (something like this - &lt;code&gt;class Bird(metaclass=abc.ABCMeta):&lt;/code&gt;) or we can subclass from the &lt;code&gt;abc.ABC&lt;/code&gt; class which has the &lt;code&gt;abc.ABCMeta&lt;/code&gt; as it&amp;rsquo;s metaclass already.&lt;/p&gt;
+
+&lt;p&gt;Then we have to use the &lt;code&gt;abc.abstractmethod&lt;/code&gt; decorator to mark our methods abstract. Now if any class derives from our base &lt;code&gt;Bird&lt;/code&gt; class, it must implement the &lt;code&gt;fly&lt;/code&gt; method too. The following code would fail:&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class=&#34;language-python&#34;&gt;class Parrot(Bird):
+    pass
+
+p = Parrot()
+
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;We see the following error:&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;TypeError: Can&#39;t instantiate abstract class Parrot with abstract methods fly
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;Let&amp;rsquo;s fix that:&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class=&#34;language-python&#34;&gt;
+class Parrot(Bird):
+    def fly(self):
+        print(&amp;quot;Flying&amp;quot;)
+
+
+p = Parrot()
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;Also note:&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class=&#34;language-python&#34;&gt;&amp;gt;&amp;gt;&amp;gt; isinstance(p, Bird)
+True
+
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;Since our parrot is recognized as an instance of &lt;code&gt;Bird&lt;/code&gt; ABC, we can be sure from it&amp;rsquo;s type that it definitely implements our desired interface.&lt;/p&gt;
+
+&lt;p&gt;Now let&amp;rsquo;s define another ABC named &lt;code&gt;Aeroplane&lt;/code&gt; like this:&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class=&#34;language-python&#34;&gt;class Aeroplane(abc.ABC):
+    @abc.abstractmethod
+    def fly(self):
+        pass
+
+
+class Boeing(Aeroplane):
+    def fly(self):
+        print(&amp;quot;Flying!&amp;quot;)
+
+b = Boeing()
+
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;Now if we compare:&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class=&#34;language-python&#34;&gt;
+&amp;gt;&amp;gt;&amp;gt; isinstance(p, Aeroplane)
+False
+&amp;gt;&amp;gt;&amp;gt; isinstance(b, Bird)
+False
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;We can see even though both objects have the same method &lt;code&gt;fly&lt;/code&gt; but we can now differentiate easily which one implements the &lt;code&gt;Bird&lt;/code&gt; interface and which implements the &lt;code&gt;Aeroplane&lt;/code&gt; interface.&lt;/p&gt;
+
+&lt;p&gt;We saw how we can create our own, custom ABCs. But it is often discouraged to create custom ABCs and rather use/subclass the built in ones. The Python standard library has many useful ABCs that we can easily reuse.  We can get a list of useful built in ABCs in the &lt;code&gt;collections.abc&lt;/code&gt; module - &lt;a href=&#34;https://docs.python.org/3/library/collections.abc.html#module-collections.abc&#34;&gt;https://docs.python.org/3/library/collections.abc.html#module-collections.abc&lt;/a&gt;. Before writing your own, please do check if there&amp;rsquo;s an ABC for the same purpose in the standard library.&lt;/p&gt;
+
+&lt;h2 id=&#34;abcs-and-virtual-subclass&#34;&gt;ABCs and Virtual Subclass&lt;/h2&gt;
+
+&lt;p&gt;We can also register a class as a &lt;em&gt;virtual subclass&lt;/em&gt; of an ABC. In that case, even if that class doesn&amp;rsquo;t subclass our ABC, it will still be treated as a subclass of the ABC (and thus accepted to have implemented the interface). Example codes will be able to demonstrate this better:&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class=&#34;language-python&#34;&gt;@Bird.register
+class Robin:
+    pass
+
+r = Robin()
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;And then:&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class=&#34;language-python&#34;&gt;&amp;gt;&amp;gt;&amp;gt; issubclass(Robin, Bird)
+True
+&amp;gt;&amp;gt;&amp;gt; isinstance(r, Bird)
+True
+&amp;gt;&amp;gt;&amp;gt;
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;In this case, even if &lt;code&gt;Robin&lt;/code&gt; does not subclass our ABC or define the abstract method, we can &lt;code&gt;register&lt;/code&gt; it as a &lt;code&gt;Bird&lt;/code&gt;. &lt;code&gt;issubclass&lt;/code&gt; and &lt;code&gt;isinstance&lt;/code&gt; behavior can be overloaded by adding two relevant magic methods. Read more on that here - &lt;a href=&#34;https://www.python.org/dev/peps/pep-3119/#overloading-isinstance-and-issubclass&#34;&gt;https://www.python.org/dev/peps/pep-3119/#overloading-isinstance-and-issubclass&lt;/a&gt;&lt;/p&gt;
+
+&lt;h2 id=&#34;further-reading&#34;&gt;Further reading&lt;/h2&gt;
+
+&lt;ul&gt;
+&lt;li&gt;&lt;a href=&#34;https://www.python.org/dev/peps/pep-3119/&#34;&gt;PEP 3119 &amp;ndash; Introducing Abstract Base Classes&lt;/a&gt;&lt;/li&gt;
+&lt;li&gt;&lt;a href=&#34;https://pymotw.com/3/abc/&#34;&gt;abc module on PyMOTW&lt;/a&gt;&lt;/li&gt;
+&lt;li&gt;&lt;a href=&#34;https://docs.python.org/3/library/abc.html&#34;&gt;abc module docs&lt;/a&gt;&lt;/li&gt;
+&lt;/ul&gt;
+</description>
+    </item>
     
     <item>
       <title>Deplying Golang Code to AWS Lambda using Apex</title>
@@ -2276,277 +2447,6 @@ old C or C++.&lt;/p&gt;
 JITs. I believe that someday Python JITs would be as fast as Java / C++.  Today, Python is making programming
 fun for many beginners. I hope with Cython, we can worry less about the time limits and accept Python as a
 fitting tool in our competitive programming contests!&lt;/p&gt;
-</description>
-    </item>
-    
-    <item>
-      <title>Introduction to Django Channels</title>
-      <link>http://masnun.rocks/2016/09/25/introduction-to-django-channels/</link>
-      <pubDate>Sun, 25 Sep 2016 21:27:34 +0600</pubDate>
-      
-      <guid>http://masnun.rocks/2016/09/25/introduction-to-django-channels/</guid>
-      <description>
-
-&lt;p&gt;Django is a brilliant web framework. In fact it is my most favourite one for various reasons. An year and
-a half ago, I switched to Python and Django for all my web development. I am a big fan of the eco system
-and the many third party packages. Particularly I use Django REST Framework whenever I need to create
-APIs. Having said that, Django was more than good enough for basic HTTP requests. But the web has changed.
-We now have HTTP/2 and web sockets. Django could not support them well in the past. For the web socket part,
-I usually had to rely on Tornado or NodeJS (with the excellent Socket.IO library). They are good technologies
-but most of my web apps being in Django, I really wished there were something that could work with Django itself.
-And then we had &lt;strong&gt;Channels&lt;/strong&gt;. The project is meant to allow Django to support HTTP/2, websockets or other
-protocols with ease.&lt;/p&gt;
-
-&lt;h3 id=&#34;concepts&#34;&gt;Concepts&lt;/h3&gt;
-
-&lt;p&gt;The underlying concept is really simple - there are &lt;code&gt;channels&lt;/code&gt; and there are &lt;code&gt;messages&lt;/code&gt;,
-there are &lt;code&gt;producers&lt;/code&gt; and there are &lt;code&gt;consumers&lt;/code&gt; - the whole system is based on passing messages
-on to channels and consuming/responding to those messages.&lt;/p&gt;
-
-&lt;p&gt;Let&amp;rsquo;s look at the core components of Django Channels first:&lt;/p&gt;
-
-&lt;ul&gt;
-&lt;li&gt;&lt;code&gt;channel&lt;/code&gt; - A channel is a FIFO queue like data structure. We can have many channels depending on our need.&lt;br /&gt;&lt;/li&gt;
-&lt;li&gt;&lt;code&gt;message&lt;/code&gt; - A message contains meaningful data for the consumers. Messages are passed on to the channels.&lt;/li&gt;
-&lt;li&gt;&lt;code&gt;consumer&lt;/code&gt; - A consumer is usually a function that consumes a message and take actions.&lt;/li&gt;
-&lt;li&gt;&lt;code&gt;interface server&lt;/code&gt; - The interface server knows how to handle different protocols. It works as a translator
-or a bridge between Django and the outside world.&lt;/li&gt;
-&lt;/ul&gt;
-
-&lt;h3 id=&#34;how-does-it-work&#34;&gt;How does it work?&lt;/h3&gt;
-
-&lt;p&gt;A http request first comes to the &lt;code&gt;Interface Server&lt;/code&gt; which knows how to deal with a specific type of
-request. For example, for websockets and http, &lt;strong&gt;Daphne&lt;/strong&gt; is a popular interface server. When a
-new http/websocket request comes to the interface server (daphne in our case), it accepts the  request
-and transforms it into a &lt;code&gt;message&lt;/code&gt;.  Then it passes the &lt;code&gt;message&lt;/code&gt; to the appropriate &lt;code&gt;channel&lt;/code&gt;. There are
-predefined channels for specific types. For example, all http requests are passed to &lt;code&gt;http.request&lt;/code&gt; channel.
-For incoming websocket messages, there is &lt;code&gt;websocket.receive&lt;/code&gt;. So these channels receive the messages when
-the corresponding type of requests come in to the interface server.&lt;/p&gt;
-
-&lt;p&gt;Now that we have &lt;code&gt;channels&lt;/code&gt; getting filled with &lt;code&gt;messages&lt;/code&gt;, we need a way to process these messages and
-take actions (if necessary), right? Yes! For that we write some consumer functions and register them to
-the channels we want. When messages come to these channels, the consumers are called with the message.
-They can read the message and act on them.&lt;/p&gt;
-
-&lt;p&gt;So far, we have seen how we can &lt;strong&gt;read&lt;/strong&gt; an incoming request. But like all web applications, we should
-&lt;strong&gt;write&lt;/strong&gt; something back too, no? How do we do that? As it happens, the interface server is quite clever.
-While transforming the incoming request into a message, it creates a &lt;code&gt;reply&lt;/code&gt; channel for that particular
-client request and registers itself to that channel. Then it passes the reply channel along with the message.
-When our consumer function reads the incoming message, it can pass a response to the &lt;code&gt;reply channel&lt;/code&gt; attached
-with the message. Our interface server is listenning to that reply channel, remember? So when a response is sent
-back to the reply channel, the interface server grabs the message, transforms it into a http response and sends
-back to the client. Simple, no?&lt;/p&gt;
-
-&lt;h3 id=&#34;writing-a-websocket-echo-server&#34;&gt;Writing a Websocket Echo Server&lt;/h3&gt;
-
-&lt;p&gt;Enough with the theories, let&amp;rsquo;s get our hands dirty and build a simple echo server. The concept is simple.
-The server accepts websocket connections, the client writes something to us, we just echo it back. Plain and
-simple example.&lt;/p&gt;
-
-&lt;h5 id=&#34;install-django-channels&#34;&gt;Install Django &amp;amp; Channels&lt;/h5&gt;
-
-&lt;pre&gt;&lt;code class=&#34;language-bash&#34;&gt;pip install channels
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;That should do the trick and install Django + Channels. Channels has Django as a depdency, so when you install
-channels, Django comes with it.&lt;/p&gt;
-
-&lt;h5 id=&#34;create-an-app&#34;&gt;Create An App&lt;/h5&gt;
-
-&lt;p&gt;Next we create a new django project and app -&lt;/p&gt;
-
-&lt;pre&gt;&lt;code class=&#34;language-bash&#34;&gt;django-admin.py startproject djchan
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;pre&gt;&lt;code class=&#34;language-bash&#34;&gt;cd djchan
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;pre&gt;&lt;code class=&#34;language-bash&#34;&gt;python manage.py startapp realtime
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;h5 id=&#34;configure-installed-apps&#34;&gt;Configure &lt;code&gt;INSTALLED_APPS&lt;/code&gt;&lt;/h5&gt;
-
-&lt;p&gt;We have our Django app ready. We need to add &lt;code&gt;channels&lt;/code&gt; and our django app (&lt;code&gt;realtime&lt;/code&gt;) to the &lt;code&gt;INSTALLED_APPS&lt;/code&gt; list under &lt;code&gt;settings.py&lt;/code&gt;.
-Let&amp;rsquo;s do that:&lt;/p&gt;
-
-&lt;pre&gt;&lt;code class=&#34;language-python&#34;&gt;INSTALLED_APPS = [
-    &#39;django.contrib.admin&#39;,
-    &#39;django.contrib.auth&#39;,
-    &#39;django.contrib.contenttypes&#39;,
-    &#39;django.contrib.sessions&#39;,
-    &#39;django.contrib.messages&#39;,
-    &#39;django.contrib.staticfiles&#39;,
-
-    &amp;quot;channels&amp;quot;,
-    &amp;quot;realtime&amp;quot;
-]
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;h5 id=&#34;write-our-consumer&#34;&gt;Write our Consumer&lt;/h5&gt;
-
-&lt;p&gt;After that, we need to start writing a consumer function that will process the incoming websocket messages
-and send back the response:&lt;/p&gt;
-
-&lt;pre&gt;&lt;code class=&#34;language-python&#34;&gt;# consumers.py 
-def websocket_receive(message):
-    text = message.content.get(&#39;text&#39;)
-    if text:
-        message.reply_channel.send({&amp;quot;text&amp;quot;: &amp;quot;You said: {}&amp;quot;.format(text)})
-
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;The code is simple enough. We receieve a message, get it&amp;rsquo;s text content (we&amp;rsquo;re expecting that the websocket
-connection will send only text data for this exmaple) and then push it back to the &lt;code&gt;reply_channel&lt;/code&gt; - just like
-we planned.&lt;/p&gt;
-
-&lt;h5 id=&#34;channels-routing&#34;&gt;Channels Routing&lt;/h5&gt;
-
-&lt;p&gt;We have our consume function ready, now we need to tell Django how to route messages to our consumer. Just like
-URL routing, we need to define our channel routings.&lt;/p&gt;
-
-&lt;pre&gt;&lt;code class=&#34;language-python&#34;&gt;# routing.py
-from channels.routing import route
-from .consumers import websocket_receive
- 
-channel_routing = [
-    route(&amp;quot;websocket.receive&amp;quot;, websocket_receive, path=r&amp;quot;^/chat/&amp;quot;),
-]
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;The code should be self explanatory. We have a list of &lt;code&gt;route&lt;/code&gt; objects. Here we select the channel name
-(&lt;code&gt;websocket.receive&lt;/code&gt; =&amp;gt; for receieving websocket messages), pass the consumer function and then configure
-the optional &lt;code&gt;path&lt;/code&gt;. The path is an interesting bit. If we didn&amp;rsquo;t pass a value for it, the consumer will
-get all the messages in the &lt;code&gt;websocket.receive&lt;/code&gt; channel on any URL. So if someone created a websocket connection
-to &lt;code&gt;/&lt;/code&gt; or &lt;code&gt;/private&lt;/code&gt; or &lt;code&gt;/user/1234&lt;/code&gt; - regardless of the url path, we would get all incoming messages. But
-that&amp;rsquo;s not our intention, right? So we restrict the &lt;code&gt;path&lt;/code&gt; to &lt;code&gt;/chat&lt;/code&gt; so only connections made to that url
-are handled by the consumer. Please note the beginning &lt;code&gt;/&lt;/code&gt;, unlike url routing, in channels, we have to use it.&lt;/p&gt;
-
-&lt;h5 id=&#34;configuring-the-channel-layers&#34;&gt;Configuring The Channel Layers&lt;/h5&gt;
-
-&lt;p&gt;We have defined a consumer and added it to a routing table. We&amp;rsquo;re more or less ready. There&amp;rsquo;s just a final
-bit of configuration we need to do. We need to tell channels two things - which backend we want to use and
-where it can find our channel routing.&lt;/p&gt;
-
-&lt;p&gt;Let&amp;rsquo;s briefly talk about the backend. The messages and the channels - Django needs some sort of data store or
-message queue to back this system. By default Django can use in memory backend which keeps these things in memory
-but if you consider a distributed app, for scaling large, you need something else. Redis is a popular and proven
-piece of technology for these kinds of scenarios. In our case we would use the Redis backend.&lt;/p&gt;
-
-&lt;p&gt;So let&amp;rsquo;s install that:&lt;/p&gt;
-
-&lt;pre&gt;&lt;code class=&#34;language-sh&#34;&gt;pip install asgi_redis
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;And now we put this in our &lt;code&gt;settings.py&lt;/code&gt;:&lt;/p&gt;
-
-&lt;pre&gt;&lt;code class=&#34;language-python&#34;&gt;CHANNEL_LAYERS = {
-    &amp;quot;default&amp;quot;: {
-        &amp;quot;BACKEND&amp;quot;: &amp;quot;asgi_redis.RedisChannelLayer&amp;quot;,
-        &amp;quot;CONFIG&amp;quot;: {
-            &amp;quot;hosts&amp;quot;: [(&amp;quot;localhost&amp;quot;, 6379)],
-        },
-        &amp;quot;ROUTING&amp;quot;: &amp;quot;realtime.routing.channel_routing&amp;quot;,
-    },
-}
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;h5 id=&#34;running-the-servers&#34;&gt;Running The Servers&lt;/h5&gt;
-
-&lt;p&gt;Make sure that Redis is running (usually &lt;code&gt;redis-server&lt;/code&gt; should run it). Now run the django app:&lt;/p&gt;
-
-&lt;pre&gt;&lt;code class=&#34;language-sh&#34;&gt;python manage.py runserver
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;In local environment, when you do &lt;code&gt;runserver&lt;/code&gt; - Django launches both the interface server and necessary
- background workers (to run the consumer functions in the background). But in production,
- we should run the workers seperately. We will get to that soon.&lt;/p&gt;
-
-&lt;h5 id=&#34;trying-it-out&#34;&gt;Trying it Out!&lt;/h5&gt;
-
-&lt;p&gt;Once our dev server starts up, let’s open up the web app. If you haven’t added any django views,
-no worries, you should still see the “It Worked!” welcome page of Django and that should be
-fine for now. We need to test our websocket and we are smart enough to do that from the dev console.
-Open up your Chrome Devtools (or Firefox | Safari | any other browser’s dev tools) and navigate to the
-JS console. Paste the following JS code:&lt;/p&gt;
-
-&lt;pre&gt;&lt;code class=&#34;language-javascript&#34;&gt;
-socket = new WebSocket(&amp;quot;ws://&amp;quot; + window.location.host + &amp;quot;/chat/&amp;quot;);
-socket.onmessage = function(e) {
-    alert(e.data);
-}
-socket.onopen = function() {
-    socket.send(&amp;quot;hello world&amp;quot;);
-}
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;If everything worked, you should get an alert with the message we sent. Since we defined a path,
-the websocket connection works only on /chat/. Try modifying the JS code and send a message to
-some other url to see how they don’t work. Also remove the path from our route and see how you can catch
-all websocket messages from all the websocket connections regardless of which url they were connected to.
-Cool, no?&lt;/p&gt;
-
-&lt;h5 id=&#34;our-custom-channels&#34;&gt;Our Custom Channels&lt;/h5&gt;
-
-&lt;p&gt;We have seen that certain protocols have predefined channels for various purposes. But we are not limited to those.
-We can create our own channels. We don&amp;rsquo;t need to do anything fancy to initialize a new channel. We just need to
-mention a name and send some messages to it. Django will create the channel for us.&lt;/p&gt;
-
-&lt;pre&gt;&lt;code class=&#34;language-python&#34;&gt;Channel(&amp;quot;thumbnailer&amp;quot;).send({
-        &amp;quot;image_id&amp;quot;: image.id
-    })
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;Of course we need corresponding workers to be listenning to those channels. Otherwise nothing will happen.
-Please note that besides working with new protocols, Channels also allow us to create some sort of message
-based task queues. We create channels for certain tasks and our workers listen to those channels. Then we
-pass the data to those channels and the workers process them. So for simpler tasks, this could be a nice
-solution.&lt;/p&gt;
-
-&lt;h3 id=&#34;scaling-production-systems&#34;&gt;Scaling Production Systems&lt;/h3&gt;
-
-&lt;h5 id=&#34;running-workers-seperately&#34;&gt;Running Workers Seperately&lt;/h5&gt;
-
-&lt;p&gt;On a production environment, we would want to run the workers seperately (since we would not run &lt;code&gt;runserver&lt;/code&gt; on
-production anyway). To run the background workers, we have to run this command:&lt;/p&gt;
-
-&lt;pre&gt;&lt;code class=&#34;language-sh&#34;&gt;python manage.py runworker
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;h5 id=&#34;asgi-daphne&#34;&gt;ASGI &amp;amp; Daphne&lt;/h5&gt;
-
-&lt;p&gt;In our local environment, the &lt;code&gt;runserver&lt;/code&gt; command took care of launching the Interface server and background
-workers. But now we have to run the interface server ourselves. We mentioned &lt;strong&gt;Daphne&lt;/strong&gt; already. It works
-with the &lt;code&gt;ASGI&lt;/code&gt; standard (which is commonly used for HTTP/2 and websockets). Just like &lt;code&gt;wsgi.py&lt;/code&gt;, we now need to
-create a &lt;code&gt;asgi.py&lt;/code&gt; module and configure it.&lt;/p&gt;
-
-&lt;pre&gt;&lt;code class=&#34;language-python&#34;&gt;import os
-from channels.asgi import get_channel_layer
-
-os.environ.setdefault(&amp;quot;DJANGO_SETTINGS_MODULE&amp;quot;, &amp;quot;djchan.settings&amp;quot;)
-
-channel_layer = get_channel_layer()
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;Now we can run the server:&lt;/p&gt;
-
-&lt;pre&gt;&lt;code class=&#34;language-bash&#34;&gt;daphne djchan.asgi:channel_layer
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;If everything goes right, the interface server should start running!&lt;/p&gt;
-
-&lt;h5 id=&#34;asgi-or-wsgi&#34;&gt;ASGI or WSGI&lt;/h5&gt;
-
-&lt;p&gt;ASGI is still new and WSGI is a battle tested http server. So you might still want to keep using wsgi for your
-http only parts and asgi for the parts where you need channels specific features.&lt;/p&gt;
-
-&lt;p&gt;The popular recommendation is that you should use &lt;code&gt;nginx&lt;/code&gt; or any other reverse proxies in front and route the
-urls to asgi or uwsgi depending on the url or &lt;code&gt;Upgrade: WebSocket&lt;/code&gt; header.&lt;/p&gt;
-
-&lt;h5 id=&#34;retries-and-celery&#34;&gt;Retries and Celery&lt;/h5&gt;
-
-&lt;p&gt;The Channels system does not gurantee delivery. If there are tasks which needs the certainity, it is highly
-recommended to use a system like Celery for these parts. Or we can also roll our own checks and retry logic if
-we feel like that.&lt;/p&gt;
 </description>
     </item>
     

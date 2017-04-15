@@ -1,0 +1,376 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <meta charset="utf-8">
+        <meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1">
+        <title>Interfaces in Python: Protocols and ABCs &middot; Abu Ashraf Masnun</title>
+        <meta name="description" content="Whovian, *nixer, business graduate, passionate software craftsman">
+        <meta name="HandheldFriendly" content="True">
+        <meta name="MobileOptimized" content="320">
+        <meta name="generator" content="Hugo 0.17" />
+        <meta name="robots" content="index,follow">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <link rel="stylesheet" href="http://masnun.rocks/css/normalize.css">
+        <link rel="stylesheet" href="http://masnun.rocks/css/highlight.css">
+        <link rel="stylesheet" href="http://masnun.rocks/css/style.css">
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Open+Sans:300italic,400italic,600italic,700italic,400,600,700,300&subset=latin,cyrillic-ext,latin-ext,cyrillic">
+        <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/font-awesome/4.6.3/css/font-awesome.min.css">
+    </head>
+    <body>
+        
+<script>
+(function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
+(i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
+m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
+})(window,document,'script','//www.google-analytics.com/analytics.js','ga');
+
+ga('create', 'UA-84715154-1', 'auto');
+ga('send', 'pageview');
+</script>
+
+
+        <div id="wrapper">
+            <header class="site-header">
+                <div class="container">
+                    <div class="site-title-wrapper">
+                        
+                            <h1 class="site-title">
+                                <a title="masnun.rocks()" href="http://masnun.rocks/">masnun.rocks()</a>
+                            </h1>
+                        
+                        <a class="button-square" href="http://masnun.rocks/index.xml"><i class="fa fa-rss"></i></a>
+                        
+                            <a class="button-square button-social hint--top" data-hint="Twitter" title="Twitter" href="https://twitter.com/masnun">
+                                <i class="fa fa-twitter"></i>
+                            </a>
+                        
+                        
+                        
+                            <a class="button-square button-social hint--top" data-hint="Github" title="Github" href="https://github.com/masnun">
+                                <i class="fa fa-github-alt"></i>
+                            </a>
+                        
+                        
+                            <a class="button-square button-social hint--top" data-hint="Stack Overflow" title="Stack Overflow" href="http://stackoverflow.com/users/301107/masnun">
+                                <i class="fa fa-stack-overflow"></i>
+                            </a>
+                        
+                        
+                        
+                    </div>
+
+                    <ul class="site-nav">
+                        
+    <li class="site-nav-item">
+        <a title="Home" href="/">Home</a>
+    </li>
+
+    <li class="site-nav-item">
+        <a title="Contact" href="/contact/">Contact</a>
+    </li>
+
+    <li class="site-nav-item">
+        <a title="About" href="/about/">About</a>
+    </li>
+
+                    </ul>
+                </div>
+            </header>
+
+            <div id="container">
+
+
+<div class="container">
+    <article class="post-container">
+        <header class="post-header">
+    <h1 class="post-title">Interfaces in Python: Protocols and ABCs</h1>
+    
+
+    <br/>
+    
+        <span class="tag"><a href="/tags/python/">Python</a></span>
+    
+</header>
+
+        <div class="post-content clearfix">
+    
+
+    
+
+<p>The idea of interface is really simple - it is the description of how an object behaves. An interface tells us what an object can do to play it&rsquo;s role in a system. In object oriented programming, an interface is a set of publicly accessible methods on an object which can be used by other parts of the program to interact with that object. Interfaces set clear boundaries and help us organize our code better. In some langauges like Java, interfaces are part of the language syntax and strictly enforced. However, in Python, things are a little different. In this post, we will explore how interfaces can be implemented in Python.</p>
+
+<h2 id="informal-interfaces-protocols-duck-typing">Informal Interfaces: Protocols / Duck Typing</h2>
+
+<p>There&rsquo;s no <code>interface</code> keyword in Python. The Java / C# way of using interfaces is not available here. In the dynamic language world, things are more implicit. We&rsquo;re more focused on how an object behaves, rather than it&rsquo;s type/class.</p>
+
+<blockquote>
+<p>If it talks and walks like a duck, then it is a duck</p>
+</blockquote>
+
+<p>So if we have an object that can fly and quack like a duck, we consider it as a duck. This called &ldquo;Duck Typing&rdquo;. In runtime, instead of checking the type of an object, we try to invoke a method we expect the object to have. If it behaves the way we expected, we&rsquo;re fine and move along. But if it doesn&rsquo;t, things might blow up. To be safe, we often handle the exceptions in a <code>try..except</code> block or use <code>hasattr</code> to check if an object has the specific method.</p>
+
+<p>In the Python world, we often hear &ldquo;file like object&rdquo; or &ldquo;an iterable&rdquo; - if an object has a <code>read</code> method, it can be treated as a file like object, if it has an <code>__iter__</code> magic method, it is an iterable. So any object, regardless of it&rsquo;s class/type, can conform to a certain interface just by implementing the expected behavior (methods). These informal interfaces are termed as <strong>protocols</strong>. Since they are informal, they can not be formally enforced. They are mostly illustrated in the documentations or defined by convention. All the cool magic methods you have heard about - <code>__len__</code>, <code>__contains__</code>, <code>__iter__</code> - they all help an object to conform to some sort of protocols.</p>
+
+<pre><code class="language-python">class Team:
+    def __init__(self, members):
+        self.__members = members
+
+    def __len__(self):
+        return len(self.__members)
+
+    def __contains__(self, member):
+        return member in self.__members
+
+
+justice_league_fav = Team([&quot;batman&quot;, &quot;wonder woman&quot;, &quot;flash&quot;])
+
+# Sized protocol
+print(len(justice_league_fav))
+
+# Container protocol
+print(&quot;batman&quot; in justice_league_fav)
+print(&quot;superman&quot; in justice_league_fav)
+print(&quot;cyborg&quot; not in justice_league_fav)
+</code></pre>
+
+<p>In our above example, by implementing the <code>__len__</code> and <code>__contains__</code> method, we can now directly use the <code>len</code> function on a <code>Team</code> instance and check for membership using the <code>in</code> operator. If we add the <code>__iter__</code> method to implement the iterable protocol, we would even be able to do something like:</p>
+
+<pre><code class="language-python">
+for member in justice_league_fav:
+    print(member)
+
+</code></pre>
+
+<p>Without implementing the <code>__iter__</code> method, if we try to iterate over the team, we will get an error like:</p>
+
+<pre><code>TypeError: 'Team' object is not iterable
+</code></pre>
+
+<p>So we can see that protocols are like informal interfaces. We can implement a protocol by implementing the methods expected by it.</p>
+
+<h2 id="formal-interfaces-abcs">Formal Interfaces: ABCs</h2>
+
+<p>While protocols work fine in many cases, there are situations where informal interfaces or duck typing in general can cause confusion. For example, a <code>Bird</code> and <code>Aeroplane</code> both can <code>fly()</code>. But they are not the same thing even if they implement the same interfaces / protocols. <strong>Abstract Base Classes</strong> or <strong>ABCs</strong> can help solve this issue.</p>
+
+<p>The concept behind ABCs is simple - we define base classes which are abstract in nature. We define certain methods on the base classes as abstract methods. So any objects deriving from these bases classes are forced to implement those methods. And since we&rsquo;re using base classes, if we see an object has our class as a base class, we can say that this object implements the interface. That is now we can use types to tell if an object implements a certain interface. Let&rsquo;s see an example.</p>
+
+<pre><code class="language-python">import abc
+
+class Bird(abc.ABC):
+    @abc.abstractmethod
+    def fly(self):
+        pass
+
+</code></pre>
+
+<p>There&rsquo;s the <code>abc</code> module which has a metaclass named <code>ABCMeta</code>. ABCs are created from this metaclass. So we can either use it directly as the metaclass of our ABC (something like this - <code>class Bird(metaclass=abc.ABCMeta):</code>) or we can subclass from the <code>abc.ABC</code> class which has the <code>abc.ABCMeta</code> as it&rsquo;s metaclass already.</p>
+
+<p>Then we have to use the <code>abc.abstractmethod</code> decorator to mark our methods abstract. Now if any class derives from our base <code>Bird</code> class, it must implement the <code>fly</code> method too. The following code would fail:</p>
+
+<pre><code class="language-python">class Parrot(Bird):
+    pass
+
+p = Parrot()
+
+</code></pre>
+
+<p>We see the following error:</p>
+
+<pre><code>TypeError: Can't instantiate abstract class Parrot with abstract methods fly
+</code></pre>
+
+<p>Let&rsquo;s fix that:</p>
+
+<pre><code class="language-python">
+class Parrot(Bird):
+    def fly(self):
+        print(&quot;Flying&quot;)
+
+
+p = Parrot()
+</code></pre>
+
+<p>Also note:</p>
+
+<pre><code class="language-python">&gt;&gt;&gt; isinstance(p, Bird)
+True
+
+</code></pre>
+
+<p>Since our parrot is recognized as an instance of <code>Bird</code> ABC, we can be sure from it&rsquo;s type that it definitely implements our desired interface.</p>
+
+<p>Now let&rsquo;s define another ABC named <code>Aeroplane</code> like this:</p>
+
+<pre><code class="language-python">class Aeroplane(abc.ABC):
+    @abc.abstractmethod
+    def fly(self):
+        pass
+
+
+class Boeing(Aeroplane):
+    def fly(self):
+        print(&quot;Flying!&quot;)
+
+b = Boeing()
+
+</code></pre>
+
+<p>Now if we compare:</p>
+
+<pre><code class="language-python">
+&gt;&gt;&gt; isinstance(p, Aeroplane)
+False
+&gt;&gt;&gt; isinstance(b, Bird)
+False
+</code></pre>
+
+<p>We can see even though both objects have the same method <code>fly</code> but we can now differentiate easily which one implements the <code>Bird</code> interface and which implements the <code>Aeroplane</code> interface.</p>
+
+<p>We saw how we can create our own, custom ABCs. But it is often discouraged to create custom ABCs and rather use/subclass the built in ones. The Python standard library has many useful ABCs that we can easily reuse.  We can get a list of useful built in ABCs in the <code>collections.abc</code> module - <a href="https://docs.python.org/3/library/collections.abc.html#module-collections.abc">https://docs.python.org/3/library/collections.abc.html#module-collections.abc</a>. Before writing your own, please do check if there&rsquo;s an ABC for the same purpose in the standard library.</p>
+
+<h2 id="abcs-and-virtual-subclass">ABCs and Virtual Subclass</h2>
+
+<p>We can also register a class as a <em>virtual subclass</em> of an ABC. In that case, even if that class doesn&rsquo;t subclass our ABC, it will still be treated as a subclass of the ABC (and thus accepted to have implemented the interface). Example codes will be able to demonstrate this better:</p>
+
+<pre><code class="language-python">@Bird.register
+class Robin:
+    pass
+
+r = Robin()
+</code></pre>
+
+<p>And then:</p>
+
+<pre><code class="language-python">&gt;&gt;&gt; issubclass(Robin, Bird)
+True
+&gt;&gt;&gt; isinstance(r, Bird)
+True
+&gt;&gt;&gt;
+</code></pre>
+
+<p>In this case, even if <code>Robin</code> does not subclass our ABC or define the abstract method, we can <code>register</code> it as a <code>Bird</code>. <code>issubclass</code> and <code>isinstance</code> behavior can be overloaded by adding two relevant magic methods. Read more on that here - <a href="https://www.python.org/dev/peps/pep-3119/#overloading-isinstance-and-issubclass">https://www.python.org/dev/peps/pep-3119/#overloading-isinstance-and-issubclass</a></p>
+
+<h2 id="further-reading">Further reading</h2>
+
+<ul>
+<li><a href="https://www.python.org/dev/peps/pep-3119/">PEP 3119 &ndash; Introducing Abstract Base Classes</a></li>
+<li><a href="https://pymotw.com/3/abc/">abc module on PyMOTW</a></li>
+<li><a href="https://docs.python.org/3/library/abc.html">abc module docs</a></li>
+</ul>
+
+</div>
+
+        <hr/>
+        <div>
+            
+            
+            <link href="//cdn-images.mailchimp.com/embedcode/horizontal-slim-10_7.css" rel="stylesheet" type="text/css">
+            <style type="text/css">
+                #mc_embed_signup{background:#fff; clear:left; font:14px Helvetica,Arial,sans-serif; width:100%;}
+                 
+            </style>
+            <div id="mc_embed_signup">
+            <form action="//rocks.us6.list-manage.com/subscribe/post?u=9629b854ab5af8778b9853891&amp;id=ad5968cb3a" method="post" id="mc-embedded-subscribe-form" name="mc-embedded-subscribe-form" class="validate" target="_blank" novalidate>
+                <div id="mc_embed_signup_scroll">
+                <label for="mce-EMAIL">Subscribe via Email</label>
+                <input type="email" value="" name="EMAIL" class="email" id="mce-EMAIL" placeholder="email address" required>
+                
+                <div style="position: absolute; left: -5000px;" aria-hidden="true"><input type="text" name="b_9629b854ab5af8778b9853891_ad5968cb3a" tabindex="-1" value=""></div>
+                <div class="clear"><input type="submit" value="Subscribe" name="subscribe" id="mc-embedded-subscribe" class="button"></div>
+                </div>
+            </form>
+            </div>
+
+            
+        
+        </div>
+        <hr/>
+
+        <footer class="post-footer clearfix">
+    
+        <p class="post-tags">
+            
+                 <span class="tag"><a href="/tags/python/">Python</a></span>
+            
+        </p>
+    
+
+    <div class="share">
+        <a class="icon-twitter" href="http://twitter.com/share?text=Interfaces%20in%20Python%3a%20Protocols%20and%20ABCs&url=http%3a%2f%2fmasnun.rocks%2f2017%2f04%2f15%2finterfaces-in-python-protocols-and-abcs%2f"
+            onclick="window.open(this.href, 'twitter-share', 'width=550,height=235');return false;">
+            <i class="fa fa-twitter"></i>
+            <span class="hidden">Twitter</span>
+        </a>
+
+        <a class="icon-facebook" href="https://www.facebook.com/sharer/sharer.php?u=http%3a%2f%2fmasnun.rocks%2f2017%2f04%2f15%2finterfaces-in-python-protocols-and-abcs%2f"
+            onclick="window.open(this.href, 'facebook-share','width=580,height=296');return false;">
+            <i class="fa fa-facebook"></i>
+            <span class="hidden">Facebook</span>
+        </a>
+
+        <a class="icon-google-plus" href="https://plus.google.com/share?url=http%3a%2f%2fmasnun.rocks%2f2017%2f04%2f15%2finterfaces-in-python-protocols-and-abcs%2f"
+           onclick="window.open(this.href, 'google-plus-share', 'width=490,height=530');return false;">
+           <i class="fa fa-google-plus"></i>
+            <span class="hidden">Google+</span>
+        </a>
+    </div>
+</footer>
+
+        <br/>
+
+        
+    <div class="comments">
+        <div id="disqus_thread"></div>
+<script type="text/javascript">
+    var disqus_shortname = 'masnun-rocks';
+    var disqus_identifier = 'http:\/\/masnun.rocks\/2017\/04\/15\/interfaces-in-python-protocols-and-abcs\/';
+    var disqus_title = 'Interfaces in Python: Protocols and ABCs';
+    var disqus_url = 'http:\/\/masnun.rocks\/2017\/04\/15\/interfaces-in-python-protocols-and-abcs\/';
+
+    (function() {
+        var dsq = document.createElement('script'); dsq.type = 'text/javascript'; dsq.async = true;
+        dsq.src = '//' + disqus_shortname + '.disqus.com/embed.js';
+        (document.getElementsByTagName('head')[0] || document.getElementsByTagName('body')[0]).appendChild(dsq);
+    })();
+</script>
+<noscript>Please enable JavaScript to view the <a href="http://disqus.com/?ref_noscript">comments powered by Disqus.</a></noscript>
+<a href="http://disqus.com" class="dsq-brlink">comments powered by <span class="logo-disqus">Disqus</span></a>
+    </div>
+
+
+    </article>
+
+    
+</div>
+
+            </div>
+        </div>
+
+        <footer class="footer">
+            <div class="container">
+                <div class="site-title-wrapper">
+                    <h1 class="site-title">
+                        <a title="masnun.rocks()" href="http://masnun.rocks/">masnun.rocks()</a>
+                    </h1>
+                    <a class="button-square button-jump-top js-jump-top" href="#">
+                        <i class="fa fa-angle-up"></i>
+                    </a>
+                </div>
+
+                <p class="footer-copyright">
+                    <span>&copy; 2017 / Powered by <a href="http://gohugo.io/">Hugo</a></span>
+                </p>
+                <p class="footer-copyright">
+                    <span><a href="https://github.com/roryg/ghostwriter">Ghostwriter theme</a> By <a href="http://jollygoodthemes.com">JollyGoodThemes</a></span>
+                    <span>/ <a href="https://github.com/jbub/ghostwriter">Ported</a> to Hugo By <a href="https://github.com/jbub">jbub</a></span>
+                </p>
+            </div>
+        </footer>
+
+        <script src="http://masnun.rocks/js/jquery-1.11.3.min.js"></script>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/8.5/highlight.min.js"></script>
+        <script src="http://masnun.rocks/js/jquery.fitvids.js"></script>
+        <script src="http://masnun.rocks/js/scripts.js"></script>
+    </body>
+</html>
+

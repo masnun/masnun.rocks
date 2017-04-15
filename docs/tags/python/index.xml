@@ -9,6 +9,177 @@
     <atom:link href="http://masnun.rocks/tags/python/index.xml" rel="self" type="application/rss+xml" />
     
     <item>
+      <title>Interfaces in Python: Protocols and ABCs</title>
+      <link>http://masnun.rocks/2017/04/15/interfaces-in-python-protocols-and-abcs/</link>
+      <pubDate>Sat, 15 Apr 2017 15:55:18 +0600</pubDate>
+      
+      <guid>http://masnun.rocks/2017/04/15/interfaces-in-python-protocols-and-abcs/</guid>
+      <description>
+
+&lt;p&gt;The idea of interface is really simple - it is the description of how an object behaves. An interface tells us what an object can do to play it&amp;rsquo;s role in a system. In object oriented programming, an interface is a set of publicly accessible methods on an object which can be used by other parts of the program to interact with that object. Interfaces set clear boundaries and help us organize our code better. In some langauges like Java, interfaces are part of the language syntax and strictly enforced. However, in Python, things are a little different. In this post, we will explore how interfaces can be implemented in Python.&lt;/p&gt;
+
+&lt;h2 id=&#34;informal-interfaces-protocols-duck-typing&#34;&gt;Informal Interfaces: Protocols / Duck Typing&lt;/h2&gt;
+
+&lt;p&gt;There&amp;rsquo;s no &lt;code&gt;interface&lt;/code&gt; keyword in Python. The Java / C# way of using interfaces is not available here. In the dynamic language world, things are more implicit. We&amp;rsquo;re more focused on how an object behaves, rather than it&amp;rsquo;s type/class.&lt;/p&gt;
+
+&lt;blockquote&gt;
+&lt;p&gt;If it talks and walks like a duck, then it is a duck&lt;/p&gt;
+&lt;/blockquote&gt;
+
+&lt;p&gt;So if we have an object that can fly and quack like a duck, we consider it as a duck. This called &amp;ldquo;Duck Typing&amp;rdquo;. In runtime, instead of checking the type of an object, we try to invoke a method we expect the object to have. If it behaves the way we expected, we&amp;rsquo;re fine and move along. But if it doesn&amp;rsquo;t, things might blow up. To be safe, we often handle the exceptions in a &lt;code&gt;try..except&lt;/code&gt; block or use &lt;code&gt;hasattr&lt;/code&gt; to check if an object has the specific method.&lt;/p&gt;
+
+&lt;p&gt;In the Python world, we often hear &amp;ldquo;file like object&amp;rdquo; or &amp;ldquo;an iterable&amp;rdquo; - if an object has a &lt;code&gt;read&lt;/code&gt; method, it can be treated as a file like object, if it has an &lt;code&gt;__iter__&lt;/code&gt; magic method, it is an iterable. So any object, regardless of it&amp;rsquo;s class/type, can conform to a certain interface just by implementing the expected behavior (methods). These informal interfaces are termed as &lt;strong&gt;protocols&lt;/strong&gt;. Since they are informal, they can not be formally enforced. They are mostly illustrated in the documentations or defined by convention. All the cool magic methods you have heard about - &lt;code&gt;__len__&lt;/code&gt;, &lt;code&gt;__contains__&lt;/code&gt;, &lt;code&gt;__iter__&lt;/code&gt; - they all help an object to conform to some sort of protocols.&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class=&#34;language-python&#34;&gt;class Team:
+    def __init__(self, members):
+        self.__members = members
+
+    def __len__(self):
+        return len(self.__members)
+
+    def __contains__(self, member):
+        return member in self.__members
+
+
+justice_league_fav = Team([&amp;quot;batman&amp;quot;, &amp;quot;wonder woman&amp;quot;, &amp;quot;flash&amp;quot;])
+
+# Sized protocol
+print(len(justice_league_fav))
+
+# Container protocol
+print(&amp;quot;batman&amp;quot; in justice_league_fav)
+print(&amp;quot;superman&amp;quot; in justice_league_fav)
+print(&amp;quot;cyborg&amp;quot; not in justice_league_fav)
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;In our above example, by implementing the &lt;code&gt;__len__&lt;/code&gt; and &lt;code&gt;__contains__&lt;/code&gt; method, we can now directly use the &lt;code&gt;len&lt;/code&gt; function on a &lt;code&gt;Team&lt;/code&gt; instance and check for membership using the &lt;code&gt;in&lt;/code&gt; operator. If we add the &lt;code&gt;__iter__&lt;/code&gt; method to implement the iterable protocol, we would even be able to do something like:&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class=&#34;language-python&#34;&gt;
+for member in justice_league_fav:
+    print(member)
+
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;Without implementing the &lt;code&gt;__iter__&lt;/code&gt; method, if we try to iterate over the team, we will get an error like:&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;TypeError: &#39;Team&#39; object is not iterable
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;So we can see that protocols are like informal interfaces. We can implement a protocol by implementing the methods expected by it.&lt;/p&gt;
+
+&lt;h2 id=&#34;formal-interfaces-abcs&#34;&gt;Formal Interfaces: ABCs&lt;/h2&gt;
+
+&lt;p&gt;While protocols work fine in many cases, there are situations where informal interfaces or duck typing in general can cause confusion. For example, a &lt;code&gt;Bird&lt;/code&gt; and &lt;code&gt;Aeroplane&lt;/code&gt; both can &lt;code&gt;fly()&lt;/code&gt;. But they are not the same thing even if they implement the same interfaces / protocols. &lt;strong&gt;Abstract Base Classes&lt;/strong&gt; or &lt;strong&gt;ABCs&lt;/strong&gt; can help solve this issue.&lt;/p&gt;
+
+&lt;p&gt;The concept behind ABCs is simple - we define base classes which are abstract in nature. We define certain methods on the base classes as abstract methods. So any objects deriving from these bases classes are forced to implement those methods. And since we&amp;rsquo;re using base classes, if we see an object has our class as a base class, we can say that this object implements the interface. That is now we can use types to tell if an object implements a certain interface. Let&amp;rsquo;s see an example.&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class=&#34;language-python&#34;&gt;import abc
+
+class Bird(abc.ABC):
+    @abc.abstractmethod
+    def fly(self):
+        pass
+
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;There&amp;rsquo;s the &lt;code&gt;abc&lt;/code&gt; module which has a metaclass named &lt;code&gt;ABCMeta&lt;/code&gt;. ABCs are created from this metaclass. So we can either use it directly as the metaclass of our ABC (something like this - &lt;code&gt;class Bird(metaclass=abc.ABCMeta):&lt;/code&gt;) or we can subclass from the &lt;code&gt;abc.ABC&lt;/code&gt; class which has the &lt;code&gt;abc.ABCMeta&lt;/code&gt; as it&amp;rsquo;s metaclass already.&lt;/p&gt;
+
+&lt;p&gt;Then we have to use the &lt;code&gt;abc.abstractmethod&lt;/code&gt; decorator to mark our methods abstract. Now if any class derives from our base &lt;code&gt;Bird&lt;/code&gt; class, it must implement the &lt;code&gt;fly&lt;/code&gt; method too. The following code would fail:&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class=&#34;language-python&#34;&gt;class Parrot(Bird):
+    pass
+
+p = Parrot()
+
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;We see the following error:&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;TypeError: Can&#39;t instantiate abstract class Parrot with abstract methods fly
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;Let&amp;rsquo;s fix that:&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class=&#34;language-python&#34;&gt;
+class Parrot(Bird):
+    def fly(self):
+        print(&amp;quot;Flying&amp;quot;)
+
+
+p = Parrot()
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;Also note:&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class=&#34;language-python&#34;&gt;&amp;gt;&amp;gt;&amp;gt; isinstance(p, Bird)
+True
+
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;Since our parrot is recognized as an instance of &lt;code&gt;Bird&lt;/code&gt; ABC, we can be sure from it&amp;rsquo;s type that it definitely implements our desired interface.&lt;/p&gt;
+
+&lt;p&gt;Now let&amp;rsquo;s define another ABC named &lt;code&gt;Aeroplane&lt;/code&gt; like this:&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class=&#34;language-python&#34;&gt;class Aeroplane(abc.ABC):
+    @abc.abstractmethod
+    def fly(self):
+        pass
+
+
+class Boeing(Aeroplane):
+    def fly(self):
+        print(&amp;quot;Flying!&amp;quot;)
+
+b = Boeing()
+
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;Now if we compare:&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class=&#34;language-python&#34;&gt;
+&amp;gt;&amp;gt;&amp;gt; isinstance(p, Aeroplane)
+False
+&amp;gt;&amp;gt;&amp;gt; isinstance(b, Bird)
+False
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;We can see even though both objects have the same method &lt;code&gt;fly&lt;/code&gt; but we can now differentiate easily which one implements the &lt;code&gt;Bird&lt;/code&gt; interface and which implements the &lt;code&gt;Aeroplane&lt;/code&gt; interface.&lt;/p&gt;
+
+&lt;p&gt;We saw how we can create our own, custom ABCs. But it is often discouraged to create custom ABCs and rather use/subclass the built in ones. The Python standard library has many useful ABCs that we can easily reuse.  We can get a list of useful built in ABCs in the &lt;code&gt;collections.abc&lt;/code&gt; module - &lt;a href=&#34;https://docs.python.org/3/library/collections.abc.html#module-collections.abc&#34;&gt;https://docs.python.org/3/library/collections.abc.html#module-collections.abc&lt;/a&gt;. Before writing your own, please do check if there&amp;rsquo;s an ABC for the same purpose in the standard library.&lt;/p&gt;
+
+&lt;h2 id=&#34;abcs-and-virtual-subclass&#34;&gt;ABCs and Virtual Subclass&lt;/h2&gt;
+
+&lt;p&gt;We can also register a class as a &lt;em&gt;virtual subclass&lt;/em&gt; of an ABC. In that case, even if that class doesn&amp;rsquo;t subclass our ABC, it will still be treated as a subclass of the ABC (and thus accepted to have implemented the interface). Example codes will be able to demonstrate this better:&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class=&#34;language-python&#34;&gt;@Bird.register
+class Robin:
+    pass
+
+r = Robin()
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;And then:&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class=&#34;language-python&#34;&gt;&amp;gt;&amp;gt;&amp;gt; issubclass(Robin, Bird)
+True
+&amp;gt;&amp;gt;&amp;gt; isinstance(r, Bird)
+True
+&amp;gt;&amp;gt;&amp;gt;
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;In this case, even if &lt;code&gt;Robin&lt;/code&gt; does not subclass our ABC or define the abstract method, we can &lt;code&gt;register&lt;/code&gt; it as a &lt;code&gt;Bird&lt;/code&gt;. &lt;code&gt;issubclass&lt;/code&gt; and &lt;code&gt;isinstance&lt;/code&gt; behavior can be overloaded by adding two relevant magic methods. Read more on that here - &lt;a href=&#34;https://www.python.org/dev/peps/pep-3119/#overloading-isinstance-and-issubclass&#34;&gt;https://www.python.org/dev/peps/pep-3119/#overloading-isinstance-and-issubclass&lt;/a&gt;&lt;/p&gt;
+
+&lt;h2 id=&#34;further-reading&#34;&gt;Further reading&lt;/h2&gt;
+
+&lt;ul&gt;
+&lt;li&gt;&lt;a href=&#34;https://www.python.org/dev/peps/pep-3119/&#34;&gt;PEP 3119 &amp;ndash; Introducing Abstract Base Classes&lt;/a&gt;&lt;/li&gt;
+&lt;li&gt;&lt;a href=&#34;https://pymotw.com/3/abc/&#34;&gt;abc module on PyMOTW&lt;/a&gt;&lt;/li&gt;
+&lt;li&gt;&lt;a href=&#34;https://docs.python.org/3/library/abc.html&#34;&gt;abc module docs&lt;/a&gt;&lt;/li&gt;
+&lt;/ul&gt;
+</description>
+    </item>
+    
+    <item>
       <title>Django REST Framework: Using the request object</title>
       <link>http://masnun.rocks/2017/03/27/django-rest-framework-using-request-object/</link>
       <pubDate>Mon, 27 Mar 2017 12:49:01 +0600</pubDate>
